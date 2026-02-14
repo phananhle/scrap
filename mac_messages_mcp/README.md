@@ -101,6 +101,26 @@ Go to **Cursor Settings** > **MCP** and paste this as a command:
 uvx mac-messages-mcp
 ```
 
+#### Option 3: Run from local source (mcp.json)
+
+If you cloned the repo and want to run the server from local source (e.g. to avoid PyPI/FastMCP version mismatches), add this to your Cursor MCP config file (`~/.cursor/mcp.json`). Replace `/path/to/mac_messages_mcp` with the absolute path to your `mac_messages_mcp` directory:
+
+```json
+{
+  "mcpServers": {
+    "mac-messages-mcp": {
+      "command": "sh",
+      "args": [
+        "-c",
+        "cd '/path/to/mac_messages_mcp' && uv run python -m mac_messages_mcp.server"
+      ]
+    }
+  }
+}
+```
+
+Then run `uv sync` or `uv pip install -e .` from the `mac_messages_mcp` directory so dependencies are installed.
+
 ⚠️ Only run one instance of the MCP server (either on Cursor or Claude Desktop), not both
 
 ### Docker Container Integration
