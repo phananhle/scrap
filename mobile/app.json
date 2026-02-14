@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "Scrap",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -30,7 +30,27 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos for your journal."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to record journal reflections.",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to use the microphone for video.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to show your recent pictures in the journal."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
