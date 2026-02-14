@@ -21,3 +21,6 @@ mobile/*.pem
 mobile/npm-debug.*
 mobile/yarn-debug.*
 mobile/yarn-error.*
+
+
+.vscode/
