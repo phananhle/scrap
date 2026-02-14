@@ -1,1 +1,23 @@
-node_modules
+node_modules/
+
+# Mobile (Expo) – avoid tracking generated/heavy files
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/.metro-health-check*
+mobile/*.tsbuildinfo
+mobile/.env*.local
+mobile/ios
+mobile/android
+mobile/.kotlin/
+mobile/*.orig.*
+mobile/*.jks
+mobile/*.p8
+mobile/*.p12
+mobile/*.key
+mobile/*.mobileprovision
+mobile/*.pem
+mobile/npm-debug.*
+mobile/yarn-debug.*
+mobile/yarn-error.*
