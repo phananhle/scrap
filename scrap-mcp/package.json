@@ -1,0 +1,16 @@
+{
+  "name": "scrap-mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "npx tsx server.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.0"
+  }
+}
