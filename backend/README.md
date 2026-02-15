@@ -27,7 +27,7 @@ Copy `.env.example` to `.env` and configure:
 
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/poke/send` | POST | Forward `{ "message": "..." }` to Poke |
+| `/poke/send` | POST | Forward `{ "message": "..." }` to Poke. Default prompt: 7-day recap (weekly_vibe, daily_breakdown, top_3_highlights, video_script_prompt, suggested_recipients). |
 | `/poke/webhook` | POST | Placeholder for Poke outbound webhooks |
 | `/poke/health` | GET | Check that `POKE_API_KEY` is configured |
 

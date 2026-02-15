@@ -1,8 +1,13 @@
+"""
+Thin client for the 7-day recap. Calls the backend POST /poke/send; the backend
+forwards to Poke. Start the backend first (e.g. npm run dev in scrap/backend).
+Sends the MESSAGE below so Poke returns the 7-day recap in that shape.
+"""
 import requests
-import os
 
-API_KEY = os.getenv('POKE_API_KEY')
-# MESSAGE = 'give me a summary of my last 7 days based on my calendar, reminders, photos, and similar with the top 5 interesting things that happened. give it to me day by day to make it easier to remind myself what i did and prompt me to provide a short video/voice message. both of this should then be used to create a summary of my last 7 days. in the next step i wanna send this to my closest friends.'
+BACKEND_URL = "http://localhost:3000"
+
+# Output schema / prompt for Poke (7-day recap: weekly_vibe, daily_breakdown, etc.)
 MESSAGE = """
 {
   "weekly_vibe": "String",
@@ -14,16 +19,15 @@ MESSAGE = """
   "video_script_prompt": "A cheeky suggestion for a 15-second video update based on the highlights.",
   "suggested_recipients": ["Friend Name/Group"]
 }
-
 """
 
 response = requests.post(
-    'https://poke.com/api/v1/inbound-sms/webhook',
-    headers={
-        'Authorization': f'Bearer {API_KEY}',
-        'Content-Type': 'application/json'
-    },
-    json={'message': MESSAGE}
+    f"{BACKEND_URL}/poke/send",
+    headers={"Content-Type": "application/json"},
+    json={"message": MESSAGE.strip()},
 )
 
-print(response.json())
+try:
+    print(response.json())
+except Exception:
+    print(response.text)
