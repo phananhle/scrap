@@ -2,6 +2,7 @@
 Mac Messages MCP - A bridge for interacting with macOS Messages app
 """
 
+from . import phone_country
 from .messages import (
     check_addressbook_access,
     check_messages_db_access,
@@ -20,6 +21,7 @@ from .messages import (
 )
 
 __all__ = [
+    "phone_country",
     "get_recent_messages",
     "send_message",
     "query_messages_db",

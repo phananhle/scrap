@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """
 Minimal HTTP server to test Messages (get recent / send).
-Run from this directory: uv run python test_server.py
+
+Run from the mac_messages_mcp directory so uv uses the correct project and deps:
+
+    cd mac_messages_mcp && uv run python test_server.py
+
 Then open http://localhost:8765 in your browser.
 """
 import json
@@ -9,6 +13,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
 from mac_messages_mcp.messages import get_recent_messages, send_message
+from mac_messages_mcp.phone_country import format_e164, list_countries
 
 PORT = 8765
 
@@ -52,6 +57,13 @@ class MessagesHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._reply_json({"ok": False, "error": str(e)}, 500)
             return
+        if path == "/api/country-codes":
+            try:
+                countries = list_countries()
+                self._reply_json({"ok": True, "countries": countries})
+            except Exception as e:
+                self._reply_json({"ok": False, "error": str(e)}, 500)
+            return
         self.send_response(404)
         self.end_headers()
 
@@ -63,10 +75,13 @@ class MessagesHandler(BaseHTTPRequestHandler):
                 raw = self.rfile.read(n)
                 body = json.loads(raw.decode())
                 recipient = body.get("recipient", "").strip()
+                country_code = (body.get("country_code") or "").strip()
                 message = body.get("message", "").strip()
                 if not recipient or not message:
                     self._reply_json({"ok": False, "error": "recipient and message required"}, 400)
                     return
+                if country_code and recipient and recipient[0].isdigit():
+                    recipient = format_e164(country_code, recipient)
                 out = send_message(recipient=recipient, message=message)
                 self._reply_json({"ok": True, "result": out})
             except json.JSONDecodeError as e:
@@ -93,7 +108,10 @@ HTML_PAGE = """<!DOCTYPE html>
     h1 { font-size: 1.25rem; margin-bottom: 16px; }
     section { margin-bottom: 20px; }
     label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem; }
-    input, textarea, button { width: 100%; padding: 8px 10px; font-size: 1rem; margin-bottom: 8px; }
+    input, textarea, button, select { width: 100%; padding: 8px 10px; font-size: 1rem; margin-bottom: 8px; }
+    .recipient-row { display: flex; gap: 8px; }
+    .recipient-row select { width: 120px; flex-shrink: 0; }
+    .recipient-row input { flex: 1; min-width: 0; }
     textarea { min-height: 72px; resize: vertical; }
     button { cursor: pointer; background: #007AFF; color: #fff; border: none; border-radius: 8px; font-weight: 600; }
     button:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -117,7 +135,10 @@ HTML_PAGE = """<!DOCTYPE html>
 
   <section>
     <label>Send message</label>
-    <input type="text" id="recipient" placeholder="Phone, email, or contact name">
+    <div class="recipient-row">
+      <select id="countryCode" title="Country dial code"></select>
+      <input type="text" id="recipient" placeholder="Phone, email, or contact name">
+    </div>
     <textarea id="message" placeholder="Message text"></textarea>
     <button type="button" id="btnSend">Send</button>
     <div class="status" id="sendStatus"></div>
@@ -128,6 +149,24 @@ HTML_PAGE = """<!DOCTYPE html>
       el.textContent = text;
       el.className = 'status' + (isErr ? ' err' : ' ok');
     };
+
+    (async () => {
+      const sel = document.getElementById('countryCode');
+      try {
+        const r = await fetch('/api/country-codes');
+        const data = await r.json();
+        if (data.ok && data.countries) {
+          data.countries.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.dial_code;
+            opt.textContent = c.flag + ' ' + c.dial_code;
+            sel.appendChild(opt);
+          });
+        }
+      } catch (e) {
+        sel.innerHTML = '<option value="+1">US +1</option>';
+      }
+    })();
 
     document.getElementById('btnRecent').onclick = async () => {
       const hours = document.getElementById('hours').value || 24;
@@ -153,6 +192,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
     document.getElementById('btnSend').onclick = async () => {
       const recipient = document.getElementById('recipient').value.trim();
+      const countryCode = document.getElementById('countryCode').value || '';
       const message = document.getElementById('message').value.trim();
       const status = document.getElementById('sendStatus');
       if (!recipient || !message) {
@@ -164,7 +204,7 @@ HTML_PAGE = """<!DOCTYPE html>
         const r = await fetch('/api/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recipient, message })
+          body: JSON.stringify({ recipient, country_code: countryCode, message })
         });
         const data = await r.json();
         if (data.ok) {
