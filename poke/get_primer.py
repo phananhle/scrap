@@ -1,7 +1,9 @@
 """
-Thin client for the 7-day recap. Calls the backend POST /poke/send; the backend
+Thin client for the recap. Calls the backend POST /poke/send; the backend
 forwards to Poke. Start the backend first (e.g. npm run dev in scrap/backend).
-Sends the MESSAGE below so Poke returns the 7-day recap in that shape.
+
+Takes a timestamp (--since): from that time (last entry) to now, Poke returns
+the 5 most important things in bullet points, chronologically, short form.
 
 Reminder: set POKE_REMIND_DAYS (default 3) in .env. Run with --check-reminder
 from cron to get a desktop reminder if you haven't run the primer in that long.
@@ -12,7 +14,7 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
@@ -31,22 +33,30 @@ BACKEND_URL = os.environ.get("POKE_BACKEND_URL", "http://localhost:3000")
 STATE_FILE = Path(__file__).resolve().parent / "reminder_state.json"
 DEFAULT_REMIND_DAYS = 3
 
-# Prompt for Poke: use default integrations (calendar, photos, reminders, email) + Mac Messages (injected by backend).
-# Response must be valid JSON in this exact format.
-MESSAGE = """
-Using your default integrations (calendar, photos, reminders, email) plus the Mac Messages I've provided above, create a 7-day recap of my last week.
 
-Return your response as valid JSON in this exact format:
-{
-  "daily_breakdown": [
-    {"day": "Monday", "title": "Short Title", "activity_summary": "Description"},
-    {"day": "Tuesday", "title": "Short Title", "activity_summary": "Description"},
-    ...
-  ],
-  "top_3_highlights": ["Highlight 1", "Highlight 2", "Highlight 3"],
-  "video_script_prompt": "A cheeky suggestion for a 15-second video update based on the highlights.",
-  "suggested_recipients": ["Friend Name/Group"]
-}
+def parse_since(s: str) -> datetime:
+    """Parse --since: ISO timestamp (e.g. 2026-02-10T00:00:00Z) or Nd for N days ago."""
+    s = s.strip()
+    if s.endswith("d") and s[:-1].isdigit():
+        days = int(s[:-1])
+        return datetime.now(timezone.utc) - timedelta(days=days)
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        raise ValueError("Invalid --since: use ISO timestamp (e.g. 2026-02-10T00:00:00Z) or Nd (e.g. 7d)")
+
+
+def build_message(since_ts: datetime) -> str:
+    """Prompt: from timestamp (last entry) to now, 5 most important things, bullet points, chronological, short."""
+    since_str = since_ts.strftime("%Y-%m-%d %H:%M UTC")
+    return f"""
+Using your default integrations (calendar, photos, reminders, email) plus the Mac Messages I've provided above:
+
+From the timestamp {since_str} (last entry) to now, give me the 5 most important things that happened.
+
+Format your response as a JSON object with one key, "highlights", an array of exactly 5 short bullet-point strings, in chronological order (oldest first), e.g.:
+{{ "highlights": ["First thing.", "Second thing.", "Third thing.", "Fourth thing.", "Fifth thing."] }}
 """
 
 
@@ -75,18 +85,21 @@ def save_state(interval_days=None, last_run_utc=None):
     STATE_FILE.write_text(json.dumps(state, indent=2) + "\n")
 
 
-def run_primer():
+def run_primer(since_ts: datetime):
+    now = datetime.now(timezone.utc)
+    message = build_message(since_ts).strip()
+    message_hours = max(1, int((now - since_ts).total_seconds() / 3600))
     response = requests.post(
         f"{BACKEND_URL}/poke/send",
         headers={"Content-Type": "application/json"},
         json={
-            "message": MESSAGE.strip(),
+            "message": message,
             "include_messages": True,
-            "message_hours": 168,  # 7 days
+            "message_hours": message_hours,
         },
     )
     if response.ok:
-        save_state(interval_days=get_remind_days(), last_run_utc=datetime.now(timezone.utc).isoformat())
+        save_state(interval_days=get_remind_days(), last_run_utc=now.isoformat())
     return response
 
 
@@ -127,7 +140,13 @@ def notify(title: str, body: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Request 7-day recap from Poke and/or manage reminder interval.")
+    parser = argparse.ArgumentParser(description="Request recap from Poke (from a timestamp to now) and/or manage reminder interval.")
+    parser.add_argument(
+        "--since",
+        metavar="TIMESTAMP",
+        default="7d",
+        help="Start of period: ISO timestamp (e.g. 2026-02-10T00:00:00Z) or Nd for N days ago (default: 7d).",
+    )
     parser.add_argument(
         "--check-reminder",
         action="store_true",
@@ -153,7 +172,12 @@ def main():
         check_reminder()
         return
 
-    response = run_primer()
+    try:
+        since_ts = parse_since(args.since)
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
+    response = run_primer(since_ts)
     try:
         print(response.json())
     except Exception:
