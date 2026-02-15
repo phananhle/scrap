@@ -1,8 +1,13 @@
 # Scrap
 
-Using Poke AI to journal succint and furnished videos to share with close friends and family.
+Scrap is the way to stay in touch with the people you love when you can’t be on the phone every day.
 
-## Run the backend
+![Scrap MVP Screenshot](./mvp.jpg)
+
+
+
+
+## Usage: Run the backend
 
 From the repo root, start the backend first (for the "Send notification" button):
 
@@ -12,7 +17,7 @@ cd backend && npm install && npm run dev
 
 Runs at `http://localhost:3000`. Use `EXPO_PUBLIC_API_URL` in the mobile app to point to this URL (or your machine's LAN IP when using a physical device).
 
-## Run the app (Expo)
+## Usage: Run the app (Expo)
 
 From the repo root:
 
