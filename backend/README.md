@@ -28,6 +28,7 @@ Copy `.env.example` to `.env` and configure:
 | Route | Method | Description |
 |-------|--------|-------------|
 | `/poke/send` | POST | Forward `{ "message": "..." }` to Poke. Add `"include_messages": true` to fetch recent Mac Messages and prepend them to the prompt. Optional: `message_hours` (default 168), `message_contact`. |
+| `/poke/agent` | POST | Send a message to the Poke AI agent via the [poke](https://www.npmjs.com/package/poke) SDK. Same body as `/poke/send`. Response is **logged to console** only (placeholder; no frontend integration yet). |
 | `/poke/webhook` | POST | Placeholder for Poke outbound webhooks |
 | `/poke/health` | GET | Check that `POKE_API_KEY` is configured |
 
@@ -60,3 +61,7 @@ The backend can retrieve Mac Messages and include them in Poke prompts without r
 2. Run `uv sync` in `mac_messages_mcp` (or `uv pip install -e .`).
 3. Grant Full Disk Access to your terminal/Node process for Messages DB access.
 4. Call `GET /messages?hours=168` or `POST /poke/send` with `{ "include_messages": true }`.
+
+## TODO
+
+- [ ] **Poke agent frontend integration**: `POST /poke/agent` uses the official [poke](https://www.npmjs.com/package/poke) SDK to send messages to the Poke AI agent. The agent response is currently logged to the console only (placeholder). Wire up the response to a frontend UI when ready.

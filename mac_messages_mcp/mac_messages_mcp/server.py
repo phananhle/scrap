@@ -30,6 +30,13 @@ logging.basicConfig(
 
 logger = logging.getLogger("mac_messages_mcp")
 
+
+def _log_tool_invocation(tool_name: str, **kwargs) -> None:
+    """Log when an MCP tool is invoked (e.g. by a Poke AI agent)."""
+    args_str = " ".join(f"{k}={v!r}" for k, v in kwargs.items() if v is not None)
+    logger.info("[MCP] Tool invoked: %s%s", tool_name, f" ({args_str})" if args_str else "")
+
+
 # Initialize the MCP server
 mcp = FastMCP("MessageBridge")
 
@@ -43,7 +50,8 @@ def tool_get_recent_messages(ctx: Context, hours: int = 24, contact: str = None)
         contact: Filter by contact name, phone number, or email (optional)
                 Use "contact:N" to select a specific contact from previous matches
     """
-    logger.info(f"Getting recent messages: hours={hours}, contact={contact}")
+    _log_tool_invocation("get_recent_messages", hours=hours, contact=contact)
+    logger.info("Getting recent messages: hours=%s, contact=%s", hours, contact)
     try:
         # Handle contacts that are passed as numbers
         if contact is not None:
@@ -66,7 +74,8 @@ def tool_send_message(ctx: Context, recipient: str, message: str, group_chat: bo
         message: Message text to send
         group_chat: Set to True when sending to a group chat. Uses the chat ID directly without contact lookup.
     """
-    logger.info(f"Sending message to: {recipient}, group_chat: {group_chat}")
+    _log_tool_invocation("send_message", recipient=recipient, group_chat=group_chat)
+    logger.info("Sending message to: %s, group_chat: %s", recipient, group_chat)
     try:
         # Ensure recipient is a string (handles numbers properly)
         recipient = str(recipient)
@@ -84,7 +93,8 @@ def tool_find_contact(ctx: Context, name: str) -> str:
     Args:
         name: The name to search for
     """
-    logger.info(f"Finding contact: {name}")
+    _log_tool_invocation("find_contact", name=name)
+    logger.info("Finding contact: %s", name)
     try:
         matches = find_contact_by_name(name)
         
@@ -113,6 +123,7 @@ def tool_check_db_access(ctx: Context) -> str:
     """
     Diagnose database access issues.
     """
+    _log_tool_invocation("check_db_access")
     logger.info("Checking database access")
     try:
         return check_messages_db_access()
@@ -125,6 +136,7 @@ def tool_check_contacts(ctx: Context) -> str:
     """
     List available contacts in the address book.
     """
+    _log_tool_invocation("check_contacts")
     logger.info("Checking available contacts")
     try:
         contacts = get_cached_contacts()
@@ -151,6 +163,7 @@ def tool_check_addressbook(ctx: Context) -> str:
     """
     Diagnose AddressBook access issues.
     """
+    _log_tool_invocation("check_addressbook")
     logger.info("Checking AddressBook access")
     try:
         return check_addressbook_access()
@@ -163,6 +176,7 @@ def tool_get_chats(ctx: Context) -> str:
     """
     List available group chats from the Messages app.
     """
+    _log_tool_invocation("get_chats")
     logger.info("Getting available chats")
     try:
         query = "SELECT chat_identifier, display_name FROM chat WHERE display_name IS NOT NULL"
@@ -201,7 +215,8 @@ def tool_check_imessage_availability(ctx: Context, recipient: str) -> str:
     Args:
         recipient: Phone number or email to check for iMessage availability
     """
-    logger.info(f"Checking iMessage availability for: {recipient}")
+    _log_tool_invocation("check_imessage_availability", recipient=recipient)
+    logger.info("Checking iMessage availability for: %s", recipient)
     try:
         recipient = str(recipient)
         has_imessage = _check_imessage_availability(recipient)
@@ -236,8 +251,17 @@ def tool_fuzzy_search_messages(
     if hours <= 0:
         return "Error: Hours must be a positive integer."
 
+    _log_tool_invocation(
+        "fuzzy_search_messages",
+        search_term=search_term,
+        hours=hours,
+        threshold=threshold,
+    )
     logger.info(
-        f"Tool: Fuzzy searching messages for '{search_term}' in last {hours} hours with threshold {threshold}"
+        "Fuzzy searching messages for %r in last %s hours with threshold %s",
+        search_term,
+        hours,
+        threshold,
     )
     try:
         result = fuzzy_search_messages(
@@ -252,11 +276,14 @@ def tool_fuzzy_search_messages(
 @mcp.resource("messages://recent/{hours}")
 def get_recent_messages_resource(hours: int = 24) -> str:
     """Resource that provides recent messages."""
+    logger.info("[MCP] Resource requested: messages://recent/%s", hours)
     return get_recent_messages(hours=hours)
+
 
 @mcp.resource("messages://contact/{contact}/{hours}")
 def get_contact_messages_resource(contact: str, hours: int = 24) -> str:
     """Resource that provides messages from a specific contact."""
+    logger.info("[MCP] Resource requested: messages://contact/%s/%s", contact, hours)
     return get_recent_messages(hours=hours, contact=contact)
 
 def run_server():
