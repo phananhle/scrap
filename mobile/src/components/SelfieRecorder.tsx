@@ -72,21 +72,28 @@ export const SelfieRecorder = React.forwardRef<SelfieRecorderHandle, SelfieRecor
     [onCameraReadyChange]
   );
 
+  const PERMISSION_CHECK_TIMEOUT_MS = 8000;
+
   React.useEffect(() => {
     if (Platform.OS === 'web') {
       setGranted(false);
       return;
     }
     let cancelled = false;
+    const timeoutId = setTimeout(() => {
+      if (!cancelled) setGranted(false);
+    }, PERMISSION_CHECK_TIMEOUT_MS);
     Camera.getCameraPermissionsAsync()
       .then((res) => {
         if (!cancelled) setGranted(res.granted);
       })
       .catch(() => {
         if (!cancelled) setGranted(false);
-      });
+      })
+      .finally(() => clearTimeout(timeoutId));
     return () => {
       cancelled = true;
+      clearTimeout(timeoutId);
     };
   }, []);
 

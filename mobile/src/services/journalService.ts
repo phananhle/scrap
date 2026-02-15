@@ -12,9 +12,11 @@ const MOCK_PRIMING_BULLETS = [
 ];
 
 export const journalService = {
-  async getPrimingText(): Promise<string> {
+  async getPrimingText(sinceTimestamp?: number): Promise<string> {
     try {
-      const res = await api.get<PrimingResponse>('/journal/priming');
+      const params =
+      sinceTimestamp != null ? { since: String(sinceTimestamp) } : undefined;
+      const res = await api.get<PrimingResponse>('/journal/priming', { params });
       return res.text;
     } catch {
       const i = Math.floor(Math.random() * MOCK_PRIMING_BULLETS.length);
