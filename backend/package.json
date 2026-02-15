@@ -9,9 +9,11 @@
     "test": "node --test poke-agent.test.js"
   },
   "dependencies": {
+    "@google/genai": "^1.41.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^4.21.0",
+    "googleapis": "^171.4.0",
     "poke": "^0.3.1"
   },
   "devDependencies": {
