@@ -1,29 +1,42 @@
+"""
+Thin client for the 7-day recap. Calls the backend POST /poke/send; the backend
+forwards to Poke. Start the backend first (e.g. npm run dev in scrap/backend).
+Sends the MESSAGE below so Poke returns the 7-day recap in that shape.
+"""
 import requests
-import os
 
-API_KEY = os.getenv('POKE_API_KEY')
-# MESSAGE = 'give me a summary of my last 7 days based on my calendar, reminders, photos, and similar with the top 5 interesting things that happened. give it to me day by day to make it easier to remind myself what i did and prompt me to provide a short video/voice message. both of this should then be used to create a summary of my last 7 days. in the next step i wanna send this to my closest friends.'
+BACKEND_URL = "http://localhost:3000"
+
+# Prompt for Poke: use default integrations (calendar, photos, reminders, email) + Mac Messages (injected by backend).
+# Response must be valid JSON in this exact format.
 MESSAGE = """
+Using your default integrations (calendar, photos, reminders, email) plus the Mac Messages I've provided above, create a 7-day recap of my last week.
+
+Return your response as valid JSON in this exact format:
 {
-  "weekly_vibe": "String",
+  "weekly_vibe": "string - one-line mood/summary of the week",
   "daily_breakdown": [
     {"day": "Monday", "title": "Short Title", "activity_summary": "Description"},
+    {"day": "Tuesday", "title": "Short Title", "activity_summary": "Description"},
     ...
   ],
   "top_3_highlights": ["Highlight 1", "Highlight 2", "Highlight 3"],
   "video_script_prompt": "A cheeky suggestion for a 15-second video update based on the highlights.",
   "suggested_recipients": ["Friend Name/Group"]
 }
-
 """
 
 response = requests.post(
-    'https://poke.com/api/v1/inbound-sms/webhook',
-    headers={
-        'Authorization': f'Bearer {API_KEY}',
-        'Content-Type': 'application/json'
+    f"{BACKEND_URL}/poke/send",
+    headers={"Content-Type": "application/json"},
+    json={
+        "message": MESSAGE.strip(),
+        "include_messages": True,
+        "message_hours": 168,  # 7 days
     },
-    json={'message': MESSAGE}
 )
 
-print(response.json())
+try:
+    print(response.json())
+except Exception:
+    print(response.text)

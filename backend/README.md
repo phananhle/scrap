@@ -27,9 +27,15 @@ Copy `.env.example` to `.env` and configure:
 
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/poke/send` | POST | Forward `{ "message": "..." }` to Poke |
+| `/poke/send` | POST | Forward `{ "message": "..." }` to Poke. Add `"include_messages": true` to fetch recent Mac Messages and prepend them to the prompt. Optional: `message_hours` (default 168), `message_contact`. |
 | `/poke/webhook` | POST | Placeholder for Poke outbound webhooks |
 | `/poke/health` | GET | Check that `POKE_API_KEY` is configured |
+
+### Messages routes (mac_messages_mcp)
+
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/messages` | GET | Retrieve recent Mac Messages via `mac_messages_mcp`. Query: `hours` (default 168), `contact` (optional). Requires `uv` and local `mac_messages_mcp` at `../mac_messages_mcp`. |
 
 ### Exposing Mac Messages MCP to Poke
 
@@ -45,3 +51,12 @@ Copy `.env.example` to `.env` and configure:
 Starts the MCP proxy and ngrok in one command. Copy the ngrok URL (e.g. `https://abc123.ngrok-free.app`) and add it in Poke at [poke.com/settings/connections/integrations/new](https://poke.com/settings/connections/integrations/new) as `https://<ngrok-host>/mcp`. Test in Poke: e.g. "Use the mac-messages integration's tool_send_message tool to..."
 
 Without `--ngrok`, runs only the proxy on port 8000 (for local use).
+
+### Backend message retrieval
+
+The backend can retrieve Mac Messages and include them in Poke prompts without running the MCP proxy:
+
+1. Ensure `mac_messages_mcp` is at `../mac_messages_mcp` and has `uv` installed (`brew install uv`).
+2. Run `uv sync` in `mac_messages_mcp` (or `uv pip install -e .`).
+3. Grant Full Disk Access to your terminal/Node process for Messages DB access.
+4. Call `GET /messages?hours=168` or `POST /poke/send` with `{ "include_messages": true }`.
