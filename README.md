@@ -2,7 +2,9 @@
 
 Scrap is the way to stay in touch with the people you love when you can’t be on the phone every day.
 
-![Scrap MVP Screenshot](./mvp.jpg)
+
+![Scrap Logo](./static/scrap_logo.png)
+![Scrap MVP Screenshot](./static/mvp.jpg)
 
 
 
