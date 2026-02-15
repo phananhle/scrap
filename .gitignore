@@ -30,3 +30,4 @@ mobile/yarn-error.*
 # Poke reminder state (local last-run timestamp)
 poke/reminder_state.json
 poke/cron.log
+convex/_generated/

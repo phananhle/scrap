@@ -61,8 +61,15 @@ function RootLayoutNav() {
         <Stack>
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="journal" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false, headerBackTitle: '' }} />
+          <Stack.Screen
+            name="journal"
+            options={{
+              headerShown: true,
+              headerTitle: 'Scrap',
+              headerBackTitle: 'Back',
+            }}
+          />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>
       </ThemeProvider>
