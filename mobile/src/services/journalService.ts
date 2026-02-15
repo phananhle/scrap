@@ -1,10 +1,15 @@
 /**
- * Journal services. Priming text from backend POST /poke/send (Poke summary),
+ * Journal services. Priming text from backend GET /summarize (Google Calendar + Gemini),
  * with mock fallback when backend is not ready.
  */
 
-import { api } from '@/api/client';
-import type { PokeSendBody, PokeSendResponse } from '@/types/journal';
+import { api, getAuthToken } from '@/api/client';
+
+const getSummarizeUrl = () => {
+  const base = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.example.com';
+  return `${base.replace(/\/$/, '')}/summarize`;
+};
+import type { SummarizeResponse } from '@/types/journal';
 
 const MOCK_PRIMING_BULLETS = [
   "• Had coffee with a friend\n• Went for a run in the park\n• Finished a work project\n• Cooked dinner at home",
@@ -14,64 +19,58 @@ const MOCK_PRIMING_BULLETS = [
 
 const MAX_HOURS = 24 * 365;
 const MIN_HOURS = 1;
-
-/**
- * Normalize backend poke/send response to a single string for display in the priming text region.
- * Handles JSON (with common keys) or plain text.
- */
-function normalizePokeResponse(response: PokeSendResponse): string {
-  if (typeof response === 'string') {
-    return response.trim();
-  }
-  if (response && typeof response === 'object') {
-    const obj = response as Record<string, unknown>;
-    const key = ['text', 'message', 'summary', 'content', 'response'].find(
-      (k) => typeof obj[k] === 'string'
-    );
-    if (key) return (obj[key] as string).trim();
-    if (typeof obj.body === 'string') return obj.body.trim();
-  }
-  return JSON.stringify(response);
-}
+const DEFAULT_HOURS = 168; // 7 days
 
 export interface GetPrimingOptions {
-  includeMessages?: boolean;
-  message?: string;
-  message_contact?: string;
+  /** Include Gmail in the Gemini summary (default true). Requires backend Gmail integration. */
+  includeGmail?: boolean;
 }
 
 export const journalService = {
   /**
-   * Fetch priming text from backend POST /poke/send.
-   * Uses sinceTimestamp to derive message_hours; optional options for message and contact.
+   * Fetch priming text from backend GET /summarize (gcal + gemini).
+   * Uses sinceTimestamp to derive hours lookback. Requires Authorization: Bearer <access_token>.
    */
   async getPrimingText(
     sinceTimestamp?: number,
     options?: GetPrimingOptions
   ): Promise<string> {
+    if (!getAuthToken()) {
+      console.warn('[journalService] No auth token; using mock priming. Sign in to get calendar summary.');
+      const i = Math.floor(Math.random() * MOCK_PRIMING_BULLETS.length);
+      return MOCK_PRIMING_BULLETS[i];
+    }
     try {
-      const messageHours =
+      const hours =
         sinceTimestamp != null
           ? Math.min(
               MAX_HOURS,
               Math.max(MIN_HOURS, Math.round((Date.now() - sinceTimestamp) / (60 * 60 * 1000)))
             )
-          : 168;
+          : DEFAULT_HOURS;
 
-      const body: PokeSendBody = {
-        include_messages: options?.includeMessages ?? true,
-        message_hours: messageHours,
-        ...(options?.message != null && options.message.trim() !== ''
-          ? { message: options.message.trim() }
-          : {}),
-        ...(options?.message_contact != null && options.message_contact.trim() !== ''
-          ? { message_contact: options.message_contact.trim() }
-          : {}),
-      };
+      const summarizeUrl = getSummarizeUrl();
+      console.log('[journalService] GET', summarizeUrl, { hours });
+      const res = await api.get<SummarizeResponse>('/summarize', {
+        params: {
+          hours: String(hours),
+          includeGmail: options?.includeGmail === false ? 'false' : 'true',
+        },
+      });
 
-      const res = await api.post<PokeSendResponse>('/poke/send', body);
-      return normalizePokeResponse(res);
-    } catch {
+      if (res.ok && typeof res.summary === 'string' && res.summary.trim()) {
+        return res.summary.trim();
+      }
+      if (res.error) {
+        throw new Error(res.error);
+      }
+      throw new Error('Empty summary');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('[journalService] GET /summarize failed, using mock:', msg);
+      if (msg === 'Network request failed') {
+        console.warn('[journalService] Tip: use EXPO_PUBLIC_API_URL=http://YOUR_MAC_IP:3000 (not localhost) when running on device or Android emulator');
+      }
       const i = Math.floor(Math.random() * MOCK_PRIMING_BULLETS.length);
       return MOCK_PRIMING_BULLETS[i];
     }

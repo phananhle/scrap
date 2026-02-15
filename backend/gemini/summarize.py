@@ -35,14 +35,19 @@ def _client_get() -> genai.Client:
         _client = genai.Client(api_key=API_KEY)
     return _client
 
-DEFAULT_PROMPT = """You are a concise summarizer. Given raw calendar entries and email snippets, output only the most important things that happened, in very short format.
+DEFAULT_PROMPT = """You are a concise summarizer. Given raw calendar entries and email snippets, output only the MOST EVENTFUL and SPECIFIC events—the standout moments that made this period noteworthy.
 
 Rules:
-- Bullet points or 1–2 line items only.
-- No intros or outros.
-- Focus on: key meetings, important emails, decisions, deadlines, notable events.
-- Skip routine/low-signal items unless they matter.
-- Keep total output under 15 lines."""
+- Highlight only events that are distinctive, high-stakes, or memorable (meetings with specific people, important deadlines, one-off events, trips, presentations).
+- Skip routine/low-signal items (recurring standups, generic blocks, "Focus time", "Lunch").
+- Be specific: name people, topics, and outcomes when possible (e.g. "1:1 with Sarah – discussed promotion" not "Meeting").
+- Bullet points or 1–2 lines per item. No intros or outros.
+- Keep total output under 12 lines. Quality over quantity."""
+
+
+def _log(msg: str) -> None:
+    """Log to stderr so stdout stays clean for Node backend."""
+    print(f"[summarize.py] {msg}", file=sys.stderr, flush=True)
 
 
 def summarize(calendar_text: str, gmail_text: str, *, prompt: str | None = None) -> str:
@@ -54,6 +59,10 @@ def summarize(calendar_text: str, gmail_text: str, *, prompt: str | None = None)
     :param prompt: Optional custom system prompt (default emphasizes short, important-only)
     :return: Short bullet-style summary string
     """
+    cal_len = len((calendar_text or "").strip())
+    mail_len = len((gmail_text or "").strip())
+    _log(f"summarize() called calendar_chars={cal_len} gmail_chars={mail_len}")
+
     instructions = prompt or DEFAULT_PROMPT
     combined = []
     if calendar_text and calendar_text.strip():
@@ -61,9 +70,11 @@ def summarize(calendar_text: str, gmail_text: str, *, prompt: str | None = None)
     if gmail_text and gmail_text.strip():
         combined.append("## Gmail\n" + gmail_text.strip())
     if not combined:
+        _log("skipped: no calendar or email content")
         return "(No calendar or email content to summarize.)"
 
     body = "\n\n".join(combined)
+    _log("calling Gemini (gemini-2.0-flash)...")
     client = _client_get()
     response = client.models.generate_content(
         model="gemini-2.0-flash",
@@ -74,8 +85,12 @@ def summarize(calendar_text: str, gmail_text: str, *, prompt: str | None = None)
         ),
     )
     if not response or not getattr(response, "text", None):
+        _log("Gemini returned no text")
         return "(Gemini returned no text.)"
-    return (response.text or "").strip()
+    result = (response.text or "").strip()
+    _log(f"Gemini result length={len(result)}")
+    _log(f"Gemini result:\n---\n{result}\n---")
+    return result
 
 
 def _read_path(p: str) -> str:
@@ -104,14 +119,24 @@ def main():
         # Single file: treat as Gmail content
         gmail_text = _read_path(args[0])
     if not calendar_text and not gmail_text and not sys.stdin.isatty():
-        # Single blob from stdin (e.g. pipe)
+        # Single blob from stdin (e.g. pipe from Node runSummarize)
         raw = sys.stdin.read()
+        _log(f"read stdin bytes={len(raw)}")
         if "## Calendar" in raw and "## Gmail" in raw:
             parts = raw.split("## Gmail", 1)
             calendar_text = parts[0].replace("## Calendar", "").strip()
             gmail_text = (parts[1] if len(parts) > 1 else "").strip()
+        elif "## Calendar" in raw:
+            calendar_text = raw.split("## Calendar", 1)[1].strip()
+            gmail_text = ""
+        elif "## Gmail" in raw:
+            gmail_text = raw.split("## Gmail", 1)[1].strip()
+            calendar_text = ""
         else:
-            gmail_text = raw
+            # No section headers: treat as calendar (backend always sends headers when it has content)
+            calendar_text = raw.strip()
+            gmail_text = ""
+    _log("main() calling summarize()")
     out = summarize(calendar_text, gmail_text)
     print(out)
 

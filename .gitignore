@@ -30,11 +30,8 @@ mobile/yarn-error.*
 # Poke reminder state (local last-run timestamp)
 poke/reminder_state.json
 poke/cron.log
-<<<<<<< HEAD
 convex/_generated/
-=======
 
 # Weekly summary OAuth (do not commit)
 weekly_summary/credentials.json
 weekly_summary/token.json
->>>>>>> 24094a5 (add scrap-mcp)

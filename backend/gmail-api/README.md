@@ -24,7 +24,7 @@ Fetches your Gmail messages from a given timestamp to now via `GET /gmail/emails
    - In `.env` (or your env source), set:
      - `GMAIL_CLIENT_ID` – from step 1
      - `GMAIL_CLIENT_SECRET` – from step 1
-     - `GMAIL_REFRESH_TOKEN` – from step 3
+     - `GOOGLE_REFRESH_TOKEN` – from step 3
 
 ## API
 

@@ -36,7 +36,25 @@ From: team@co.com | Subject: Deploy done | Snippet: Staging is live...
 print(summarize(calendar, gmail))
 ```
 
-### CLI
+### Fetch Google Calendar and summarize (standalone script)
+
+Run a script that calls the **Google Calendar API** for events, then summarizes with Gemini (no Node server needed):
+
+```bash
+# Install deps first (adds google-api-python-client, google-auth)
+pip install -r requirements.txt
+
+# Use an OAuth2 access token (e.g. from backend get-google-token.js or your app)
+export GOOGLE_ACCESS_TOKEN=your_access_token
+python summarize_with_gcal.py --hours 48
+
+# Or pass token on the command line
+python summarize_with_gcal.py --token "$GOOGLE_ACCESS_TOKEN" --hours 24
+```
+
+Requires `GEMINI_API_KEY` and `GOOGLE_ACCESS_TOKEN` (env or `--token`). The script fetches primary calendar events for the last N hours and prints the Gemini summary to stdout.
+
+### CLI (summarize.py)
 
 - **Two files** (calendar, then Gmail):
   ```bash

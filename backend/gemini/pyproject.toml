@@ -1,0 +1,15 @@
+[project]
+name = "gemini-summarize"
+version = "0.1.0"
+description = "Gemini summarizer + Google Calendar fetch script"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "google-genai>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "google-api-python-client>=2.0.0",
+    "google-auth>=2.0.0",
+]
+
+[tool.uv]
+dev-dependencies = []
