@@ -29,6 +29,7 @@ export function usePriming(sinceTimestamp?: number, options?: GetPrimingOptions)
         durationMs + 'ms',
         `text.length=${result?.length ?? 0}`
       );
+      console.log('usePriming backend response:', result ?? '(empty)');
       setText(result);
       return result;
     } catch (e) {
