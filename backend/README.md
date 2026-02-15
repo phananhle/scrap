@@ -64,4 +64,4 @@ The backend can retrieve Mac Messages and include them in Poke prompts without r
 
 ## TODO
 
-- [ ] **Poke agent frontend integration**: `POST /poke/agent` uses the official [poke](https://www.npmjs.com/package/poke) SDK to send messages to the Poke AI agent. The agent response is currently logged to the console only (placeholder). Wire up the response to a frontend UI when ready.
+- [x] **Poke agent frontend integration**: `POST /poke/agent` uses the official [poke](https://www.npmjs.com/package/poke) SDK to send messages to the Poke AI agent. The agent response is returned to the client and wired to the mobile app via `journalService.getPrimingText()` → `usePriming` → priming text UI.

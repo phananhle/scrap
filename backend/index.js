@@ -1,5 +1,7 @@
 import 'dotenv/config';
+import crypto from 'crypto';
 import express from 'express';
+import fs from 'fs';
 import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -8,6 +10,8 @@ import { Poke } from 'poke';
 import { requestLogger } from './middleware/requestLogger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DEBUG_LOG = path.resolve(__dirname, '../../.cursor/debug.log');
+const dbg = (loc, msg, data, hid) => { try { fs.mkdirSync(path.dirname(DEBUG_LOG), { recursive: true }); fs.appendFileSync(DEBUG_LOG, JSON.stringify({location:loc,message:msg,data,timestamp:Date.now(),hypothesisId:hid})+'\n'); } catch(_){} };
 const MCP_DIR = path.resolve(__dirname, '../mac_messages_mcp');
 const GET_MESSAGES_SCRIPT = path.join(MCP_DIR, 'get_messages_cli.py');
 
@@ -18,7 +22,16 @@ app.use(requestLogger);
 const PORT = process.env.PORT ?? 3000;
 const POKE_WEBHOOK_URL = 'https://poke.com/api/v1/inbound-sms/webhook';
 
-const DEFAULT_POKE_PROMPT = `give me a summary of my last 7 days based on my calendar, reminders, photos, and similar with the top 5 interesting things that happened. give it to me day by day to make it easier to remind myself what i did and prompt me to provide a short video/voice message. both of this should then be used to create a summary of my last 7 days. in the next step i wanna send this to my closest friends.`;
+/** Block-signal: pending request_ids (client not blocked; callback validates and clears). */
+const pendingPokeAgentRequestIds = new Set();
+
+function randomUUID() {
+  return crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');
+}
+
+const DEFAULT_POKE_PROMPT = `This is an API request. The caller will display your response in a mobile app. You MUST return the summary as text in your response—do NOT use send_message, tool_send_message, or any tool that sends to iMessage/SMS. If you send a message, the app will show only "Message sent successfully" instead of your summary.
+
+Using the Messages I've provided above plus your calendar, reminders, photos, and other integrations, create a brief summary of my last 7 days. Output the summary directly in your reply. Format day by day with the top 5 interesting things. Include a short prompt to record a video/voice reflection. Keep it concise and scannable.`;
 
 /**
  * Fetch recent messages from Mac Messages via mac_messages_mcp.
@@ -166,11 +179,14 @@ app.post('/poke/webhook', (req, res) => {
 
 /**
  * POST /poke/agent
- * Send a message to the Poke AI agent via the official Poke SDK.
- * Response is logged to console (placeholder; no frontend integration yet).
- * Body: { "message": "..." } — defaults to DEFAULT_POKE_PROMPT if empty.
+ * Send a message to the Poke AI agent. Returns immediately with 202 and request_id so the
+ * client is not blocked. When the user has the reply (e.g. from Messages), the client
+ * calls POST /poke/callback with request_id and message to complete the flow.
  */
 app.post('/poke/agent', async (req, res) => {
+  const t0 = Date.now();
+  dbg('backend/index.js:poke/agent:entry', 'poke/agent received', { bodyKeys: req.body ? Object.keys(req.body) : [] }, 'H4');
+
   const apiKey = process.env.POKE_API_KEY;
   if (!apiKey) {
     return res.status(503).json({
@@ -179,10 +195,18 @@ app.post('/poke/agent', async (req, res) => {
     });
   }
 
+  const requestId =
+    typeof req.body?.request_id === 'string' && req.body.request_id.trim() !== ''
+      ? req.body.request_id.trim()
+      : randomUUID();
+
+  pendingPokeAgentRequestIds.add(requestId);
+
   const text =
     typeof req.body?.message === 'string' && req.body.message.trim() !== ''
       ? req.body.message.trim()
       : DEFAULT_POKE_PROMPT;
+  console.log('Poke request body:', { ...req.body, requestId });
 
   const includeMessages = req.body?.include_messages === true;
   let message = text;
@@ -196,19 +220,18 @@ app.post('/poke/agent', async (req, res) => {
     }
   }
 
+  message = `${message}\n\nRequest ID: ${requestId}`;
+
   try {
+    dbg('backend/index.js:before poke.sendMessage', 'calling Poke', { messageLen: message?.length, requestId }, 'H1');
     const poke = new Poke({ apiKey });
-    const response = await poke.sendMessage(message);
-
-    // Placeholder: log output to console (no frontend integration yet)
-    console.log('[Poke Agent] Response:', JSON.stringify(response, null, 2));
-
-    res.status(200).json({
-      ok: true,
-      received: true,
-      message: 'Poke agent response logged to console (placeholder)',
+    poke.sendMessage(message).catch((err) => {
+      console.error('[Poke Agent] sendMessage failed:', err);
     });
+    res.status(202).json({ request_id: requestId, accepted: true });
   } catch (err) {
+    pendingPokeAgentRequestIds.delete(requestId);
+    dbg('backend/index.js:poke/agent:catch', 'Poke threw', { errMessage: err?.message, durationMs: Date.now() - t0 }, 'H5');
     console.error('[Poke Agent] Error:', err);
     res.status(502).json({
       ok: false,
@@ -216,6 +239,31 @@ app.post('/poke/agent', async (req, res) => {
       details: err.message,
     });
   }
+});
+
+/**
+ * POST /poke/callback
+ * Client (phone) calls this with the agent's reply after the user pastes the summary.
+ * Body: { request_id: string, message: string } (or requestId).
+ */
+app.post('/poke/callback', (req, res) => {
+  const requestId =
+    typeof req.body?.request_id === 'string' && req.body.request_id.trim() !== ''
+      ? req.body.request_id.trim()
+      : typeof req.body?.requestId === 'string' && req.body.requestId.trim() !== ''
+        ? req.body.requestId.trim()
+        : null;
+
+  if (!requestId) {
+    return res.status(400).json({ ok: false, error: 'Missing request_id' });
+  }
+
+  if (!pendingPokeAgentRequestIds.has(requestId)) {
+    return res.status(404).json({ ok: false, error: 'Unknown or already used request_id' });
+  }
+
+  pendingPokeAgentRequestIds.delete(requestId);
+  res.status(200).json({ ok: true });
 });
 
 app.listen(PORT, () => {

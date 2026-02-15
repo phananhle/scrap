@@ -1,9 +1,16 @@
 /**
  * HTTP client for API calls. No UI imports.
- * Base URL can be set via EXPO_PUBLIC_API_URL env later.
+ * Base URL can be set via EXPO_PUBLIC_API_URL env.
+ * - iOS Simulator: http://localhost:3000
+ * - Android Emulator: http://10.0.2.2:3000
+ * - Physical device: http://<your-machine-ip>:3000
  */
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.example.com';
+
+if (__DEV__) {
+  console.log('[API] BASE_URL:', BASE_URL);
+}
 
 let authToken: string | null = null;
 
