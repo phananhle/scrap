@@ -3,6 +3,7 @@ import express from 'express';
 import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { Poke } from 'poke';
 
 import { requestLogger } from './middleware/requestLogger.js';
 
@@ -161,6 +162,60 @@ app.post('/poke/webhook', (req, res) => {
     console.debug('Poke webhook payload:', req.body);
   }
   res.status(200).json({ ok: true });
+});
+
+/**
+ * POST /poke/agent
+ * Send a message to the Poke AI agent via the official Poke SDK.
+ * Response is logged to console (placeholder; no frontend integration yet).
+ * Body: { "message": "..." } — defaults to DEFAULT_POKE_PROMPT if empty.
+ */
+app.post('/poke/agent', async (req, res) => {
+  const apiKey = process.env.POKE_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({
+      ok: false,
+      error: 'POKE_API_KEY is not configured',
+    });
+  }
+
+  const text =
+    typeof req.body?.message === 'string' && req.body.message.trim() !== ''
+      ? req.body.message.trim()
+      : DEFAULT_POKE_PROMPT;
+
+  const includeMessages = req.body?.include_messages === true;
+  let message = text;
+
+  if (includeMessages) {
+    const hours = Math.min(Math.max(1, parseInt(req.body?.message_hours, 10) || 168), 24 * 365);
+    const contact = typeof req.body?.message_contact === 'string' ? req.body.message_contact.trim() : undefined;
+    const msgResult = await fetchMessages(hours, contact || undefined);
+    if (msgResult.ok && msgResult.messages && msgResult.messages.trim()) {
+      message = `Here are my recent Messages (last ${hours} hours):\n\n${msgResult.messages}\n\n---\n\n${message}`;
+    }
+  }
+
+  try {
+    const poke = new Poke({ apiKey });
+    const response = await poke.sendMessage(message);
+
+    // Placeholder: log output to console (no frontend integration yet)
+    console.log('[Poke Agent] Response:', JSON.stringify(response, null, 2));
+
+    res.status(200).json({
+      ok: true,
+      received: true,
+      message: 'Poke agent response logged to console (placeholder)',
+    });
+  } catch (err) {
+    console.error('[Poke Agent] Error:', err);
+    res.status(502).json({
+      ok: false,
+      error: 'Failed to reach Poke agent',
+      details: err.message,
+    });
+  }
 });
 
 app.listen(PORT, () => {

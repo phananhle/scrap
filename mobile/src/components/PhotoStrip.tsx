@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import * as MediaLibrary from 'expo-media-library';
 import type { Asset } from 'expo-media-library';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -39,7 +40,17 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-export function PhotoStrip({ sinceTimestamp }: { sinceTimestamp?: number }) {
+interface PhotoStripProps {
+  sinceTimestamp?: number;
+  selectedUris?: string[];
+  onSelectionChange?: (uris: string[]) => void;
+}
+
+export function PhotoStrip({
+  sinceTimestamp,
+  selectedUris = [],
+  onSelectionChange,
+}: PhotoStripProps) {
   const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [permissionDenied, setPermissionDenied] = useState(false);
@@ -126,6 +137,18 @@ export function PhotoStrip({ sinceTimestamp }: { sinceTimestamp?: number }) {
     loadRecentPhotos();
   }, [loadRecentPhotos]);
 
+  const handlePhotoPress = useCallback(
+    (uri: string) => {
+      if (!onSelectionChange) return;
+      const isSelected = selectedUris.includes(uri);
+      const next = isSelected
+        ? selectedUris.filter((u) => u !== uri)
+        : [...selectedUris, uri];
+      onSelectionChange(next);
+    },
+    [onSelectionChange, selectedUris]
+  );
+
   const sectionTitle =
     sinceTimestamp != null
       ? 'Photos from the last 48 hours'
@@ -198,6 +221,8 @@ export function PhotoStrip({ sinceTimestamp }: { sinceTimestamp?: number }) {
     );
   }
 
+  const selectable = !!onSelectionChange;
+
   return (
     <ThemedView style={styles.section}>
       <ThemedText style={styles.sectionTitle}>
@@ -206,13 +231,43 @@ export function PhotoStrip({ sinceTimestamp }: { sinceTimestamp?: number }) {
           : 'Your 10 most recent photos'}
       </ThemedText>
       <View style={styles.grid}>
-        {photoUris.map((uri, index) => (
-          <Image
-            key={`${uri}-${index}`}
-            source={{ uri }}
-            style={[styles.cell, { width: CELL_SIZE, height: CELL_SIZE }]}
-          />
-        ))}
+        {photoUris.map((uri, index) => {
+          const isSelected = selectedUris.includes(uri);
+          const content = (
+            <View style={[styles.cellWrapper, { width: CELL_SIZE, height: CELL_SIZE }]}>
+              <Image
+                source={{ uri }}
+                style={[styles.cell, { width: CELL_SIZE, height: CELL_SIZE }]}
+              />
+              {selectable && isSelected && (
+                <View style={[styles.cellOverlay, { width: CELL_SIZE, height: CELL_SIZE }]}>
+                  <Ionicons name="checkmark-circle" size={32} color="#fff" />
+                </View>
+              )}
+            </View>
+          );
+          if (selectable) {
+            return (
+              <Pressable
+                key={`${uri}-${index}`}
+                onPress={() => handlePhotoPress(uri)}
+                style={({ pressed }) => [
+                  styles.cellPressable,
+                  { width: CELL_SIZE, height: CELL_SIZE },
+                  isSelected && styles.cellSelected,
+                  pressed && styles.cellPressed,
+                ]}
+              >
+                {content}
+              </Pressable>
+            );
+          }
+          return (
+            <View key={`${uri}-${index}`}>
+              {content}
+            </View>
+          );
+        })}
       </View>
     </ThemedView>
   );
@@ -236,6 +291,32 @@ const styles = StyleSheet.create({
   cell: {
     borderRadius: 10,
     backgroundColor: '#eee',
+  },
+  cellWrapper: {
+    borderRadius: 10,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  cellPressable: {
+    borderRadius: 10,
+  },
+  cellSelected: {
+    borderWidth: 3,
+    borderColor: '#2f95dc',
+  },
+  cellPressed: {
+    opacity: 0.8,
+  },
+  cellOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
   },
   placeholder: {
     minHeight: PLACEHOLDER_MIN_HEIGHT,
