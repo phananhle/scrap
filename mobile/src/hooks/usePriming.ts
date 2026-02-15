@@ -34,7 +34,7 @@ export function usePriming(sinceTimestamp?: number, options?: GetPrimingOptions)
       );
       console.log('usePriming backend response:', result?.text ?? (result?.requestId ? '(waiting for paste)' : '(empty)'));
       setText(result.text ?? null);
-      setRequestId(result.requestId);
+      setRequestId(result.text ? null : result.requestId);
       return result;
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));

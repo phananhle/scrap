@@ -1,7 +1,7 @@
 /**
- * Journal services. Priming text from backend POST /poke/agent (Poke summary),
- * with mock fallback when backend is not ready.
- * Block-signal: client sends request_id and can call submitPrimingCallback to deliver the reply.
+ * Journal services. Priming text from backend POST /poke/agent (Poke summary).
+ * Backend reads the latest reply from Mac Messages (Poke contact) and returns 200 with message.
+ * On timeout (504) or 202, paste fallback is available via submitPrimingCallback.
  */
 
 import { api } from '@/api/client';
@@ -75,7 +75,7 @@ export interface GetPrimingOptions {
 }
 
 export interface GetPrimingResult {
-  /** Priming text; null when backend returned 202 (waiting for paste). */
+  /** Priming text; null when backend returned 202 (waiting for paste) or no usable reply. */
   text: string | null;
   requestId: string;
 }
@@ -83,8 +83,8 @@ export interface GetPrimingResult {
 export const journalService = {
   /**
    * Fetch priming text from backend POST /poke/agent.
-   * Backend blocks until the client calls submitPrimingCallback with the same requestId.
-   * Returns { text, requestId } so the UI can call submitPrimingCallback(requestId, message) when the user has the reply.
+   * Backend triggers Poke then polls Mac Messages for the latest reply; returns 200 with message.
+   * On timeout (504) or 202, returns { text: null, requestId } so UI can show paste fallback.
    */
   async getPrimingText(
     sinceTimestamp?: number,
@@ -113,10 +113,16 @@ export const journalService = {
           : {}),
       };
 
-      const res = await api.post<PokeSendResponse & { request_id?: string; accepted?: boolean }>('/poke/agent', body);
+      const res = await api.post<PokeSendResponse & { success?: boolean; message?: string; request_id?: string; accepted?: boolean }>('/poke/agent', body);
       // #region agent log
       fetch('http://127.0.0.1:7243/ingest/e9d32737-a9f8-4386-b060-3a50eaafbf4a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'journalService.ts:getPrimingText:raw',message:'raw API response',data:{resKeys:res&&typeof res==='object'?Object.keys(res):[],resType:typeof res,resPreview:typeof res==='object'&&res?JSON.stringify(res).slice(0,150):String(res).slice(0,150)},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
       // #endregion
+      if (res && typeof res === 'object' && res.success === true && typeof res.message === 'string') {
+        const normalized = normalizePokeResponse(res);
+        if (normalized && normalized.trim().length > 0) {
+          return { text: normalized, requestId };
+        }
+      }
       if (res && typeof res === 'object' && res.accepted === true && typeof res.request_id === 'string') {
         return { text: null, requestId: res.request_id };
       }

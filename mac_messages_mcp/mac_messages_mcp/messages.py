@@ -870,6 +870,78 @@ def get_recent_messages(hours: int = 24, contact: Optional[str] = None) -> str:
 get_recent_messages.recent_matches = []
 
 
+def get_latest_message_from_contact(contact: str, hours: int = 1) -> Optional[Dict[str, Any]]:
+    """
+    Get the single most recent message from a given contact (for backend polling).
+    Returns a dict with body, is_from_me, date (Apple timestamp), or None if no message/error.
+    """
+    if not contact or not str(contact).strip():
+        return None
+    contact = str(contact).strip()
+
+    handle_ids = None
+    if not all(c.isdigit() or c in '+- ()@.' for c in contact):
+        matches = find_contact_by_name(contact)
+        if not matches:
+            return None
+        if len(matches) > 1:
+            contact = matches[0]['phone']
+        else:
+            contact = matches[0]['phone']
+    if '@' in contact:
+        query = "SELECT ROWID FROM handle WHERE id = ?"
+        results = query_messages_db(query, (contact,))
+        if results and "error" not in results[0] and len(results) > 0:
+            handle_ids = [row["ROWID"] for row in results]
+    else:
+        handle_ids = find_handles_by_phone(contact)
+    if not handle_ids:
+        return None
+
+    current_time = datetime.now(timezone.utc)
+    hours_ago = current_time - timedelta(hours=hours)
+    apple_epoch = datetime(2001, 1, 1, tzinfo=timezone.utc)
+    seconds_since_apple_epoch = (hours_ago - apple_epoch).total_seconds()
+    nanoseconds_since_apple_epoch = int(seconds_since_apple_epoch * 1_000_000_000)
+    timestamp_str = str(nanoseconds_since_apple_epoch)
+
+    query = """
+    SELECT m.date, m.text, m.attributedBody, m.is_from_me
+    FROM message m
+    WHERE CAST(m.date AS TEXT) > ?
+    """
+    params = [timestamp_str]
+    placeholders = ", ".join(["?" for _ in handle_ids])
+    query += f"AND m.handle_id IN ({placeholders}) "
+    params.extend(handle_ids)
+    query += "ORDER BY m.date DESC LIMIT 1"
+
+    messages = query_messages_db(query, tuple(params))
+    if not messages or "error" in messages[0]:
+        return None
+
+    msg = messages[0]
+    if msg.get("text"):
+        body = msg["text"]
+    elif msg.get("attributedBody"):
+        body = extract_body_from_attributed(msg["attributedBody"])
+    else:
+        return None
+    if not body or not body.strip():
+        return None
+
+    is_from_me = bool(msg.get("is_from_me"))
+    date_val = msg.get("date")
+    if date_val is None:
+        return None
+    try:
+        date_int = int(date_val)
+    except (TypeError, ValueError):
+        return None
+
+    return {"body": body.strip(), "is_from_me": is_from_me, "date": date_int}
+
+
 def fuzzy_search_messages(
     search_term: str,
     hours: int = 24,

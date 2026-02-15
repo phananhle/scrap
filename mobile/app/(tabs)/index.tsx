@@ -150,12 +150,15 @@ export default function JournalScreen() {
                 </Pressable>
               </View>
             ) : primingLoading && !primingText ? (
-              <View style={styles.primingPlaceholder}>
-                <ActivityIndicator size="small" />
-                <ThemedText style={styles.primingPlaceholderText}>
-                  Waiting for Poke agent…
+              <ThemedView style={styles.waitingPanel}>
+                <ActivityIndicator size="small" style={styles.waitingPanelSpinner} />
+                <ThemedText style={styles.waitingPanelTitle}>
+                  Waiting for Poke AI response
                 </ThemedText>
-              </View>
+                <ThemedText style={styles.waitingPanelSubtext}>
+                  Fetching your memory prompt…
+                </ThemedText>
+              </ThemedView>
             ) : primingText ? (
               <ThemedText style={styles.primingText}>{primingText}</ThemedText>
             ) : (
@@ -274,6 +277,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     paddingVertical: 12,
+  },
+  waitingPanel: {
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(128,128,128,0.35)',
+    backgroundColor: 'rgba(128,128,128,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 100,
+  },
+  waitingPanelSpinner: {
+    marginBottom: 12,
+  },
+  waitingPanelTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  waitingPanelSubtext: {
+    fontSize: 14,
+    opacity: 0.7,
   },
   primingText: {
     fontSize: 15,

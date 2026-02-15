@@ -22,8 +22,22 @@ app.use(requestLogger);
 const PORT = process.env.PORT ?? 3000;
 const POKE_WEBHOOK_URL = 'https://poke.com/api/v1/inbound-sms/webhook';
 
-/** Block-signal: pending request_ids (client not blocked; callback validates and clears). */
+const POKE_MESSAGES_CONTACT = (process.env.POKE_MESSAGES_CONTACT || 'Poke').trim();
+const POKE_POLL_INTERVAL_MS = Math.max(2000, parseInt(process.env.POKE_POLL_INTERVAL_MS, 10) || 5000);
+const POKE_POLL_TIMEOUT_MS = Math.min(600000, Math.max(15000, parseInt(process.env.POKE_POLL_TIMEOUT_MS, 10) || 180000));
+const POKE_FIRST_POLL_DELAY_MS = Math.max(0, parseInt(process.env.POKE_FIRST_POLL_DELAY_MS, 10) || 5000);
+
+/**
+ * Block-signal: pending request_ids for paste fallback when Mac polling times out.
+ * Used only by POST /poke/callback—does not affect Poke send or poll loop latency.
+ */
 const pendingPokeAgentRequestIds = new Set();
+
+const APPLE_EPOCH_MS = new Date('2001-01-01T00:00:00Z').getTime();
+function appleTimestampToMs(appleNanos) {
+  if (appleNanos == null || typeof appleNanos !== 'number') return 0;
+  return (appleNanos / 1e9) * 1000 + APPLE_EPOCH_MS;
+}
 
 function randomUUID() {
   return crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');
@@ -77,6 +91,50 @@ async function fetchMessages(hours = 168, contact) {
       resolve({ ok: false, messages: '', error: err.message });
     });
   });
+}
+
+/**
+ * Fetch the single most recent message from a contact via get_latest_message_cli.py.
+ * @param {string} contact - Contact name (e.g. "Poke")
+ * @param {number} hours - Hours to look back (default 1)
+ * @returns {Promise<{ok: boolean, body?: string, is_from_me?: boolean, date?: number, error?: string}>}
+ */
+async function fetchLatestMessageFromContact(contact, hours = 1) {
+  return new Promise((resolve) => {
+    const args = ['run', 'python', 'get_latest_message_cli.py', String(contact).trim(), String(hours)];
+    const proc = spawn('uv', args, {
+      cwd: MCP_DIR,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    proc.stdout?.on('data', (chunk) => { stdout += chunk; });
+    proc.stderr?.on('data', (chunk) => { stderr += chunk; });
+    proc.on('close', (code) => {
+      try {
+        const data = JSON.parse(stdout || '{}');
+        if (data.ok && typeof data.body === 'string') {
+          resolve({
+            ok: true,
+            body: data.body,
+            is_from_me: Boolean(data.is_from_me),
+            date: typeof data.date === 'number' ? data.date : undefined,
+          });
+        } else {
+          resolve({ ok: false, error: data.error || stderr || `exit code ${code}` });
+        }
+      } catch {
+        resolve({ ok: false, error: stderr || stdout || 'Invalid JSON' });
+      }
+    });
+    proc.on('error', (err) => {
+      resolve({ ok: false, error: err.message });
+    });
+  });
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 app.get('/', (req, res) => {
@@ -179,9 +237,9 @@ app.post('/poke/webhook', (req, res) => {
 
 /**
  * POST /poke/agent
- * Send a message to the Poke AI agent. Returns immediately with 202 and request_id so the
- * client is not blocked. When the user has the reply (e.g. from Messages), the client
- * calls POST /poke/callback with request_id and message to complete the flow.
+ * Send a message to the Poke AI agent, then poll Mac Messages for the latest reply from
+ * POKE_MESSAGES_CONTACT. Returns 200 with the message when found, or 504 on timeout
+ * (client can use paste fallback via POST /poke/callback).
  */
 app.post('/poke/agent', async (req, res) => {
   const t0 = Date.now();
@@ -225,20 +283,41 @@ app.post('/poke/agent', async (req, res) => {
   try {
     dbg('backend/index.js:before poke.sendMessage', 'calling Poke', { messageLen: message?.length, requestId }, 'H1');
     const poke = new Poke({ apiKey });
-    poke.sendMessage(message).catch((err) => {
-      console.error('[Poke Agent] sendMessage failed:', err);
-    });
-    res.status(202).json({ request_id: requestId, accepted: true });
+    await poke.sendMessage(message);
   } catch (err) {
     pendingPokeAgentRequestIds.delete(requestId);
     dbg('backend/index.js:poke/agent:catch', 'Poke threw', { errMessage: err?.message, durationMs: Date.now() - t0 }, 'H5');
     console.error('[Poke Agent] Error:', err);
-    res.status(502).json({
+    return res.status(502).json({
       ok: false,
       error: 'Failed to reach Poke agent',
       details: err.message,
     });
   }
+
+  await sleep(POKE_FIRST_POLL_DELAY_MS);
+  const deadline = t0 + POKE_POLL_TIMEOUT_MS;
+
+  const fetchLatest = app.locals.fetchLatestMessageFromContact ?? fetchLatestMessageFromContact;
+  // Poll loop: block until incoming message found or timeout. Block-signal (callback) is paste fallback only.
+  while (Date.now() < deadline) {
+    const latest = await fetchLatest(POKE_MESSAGES_CONTACT, 1);
+    if (latest.ok && latest.body && !latest.is_from_me) {
+      const messageMs = appleTimestampToMs(latest.date);
+      if (messageMs >= t0) {
+        pendingPokeAgentRequestIds.delete(requestId);
+        dbg('backend/index.js:poke/agent:reply', 'Reply from Messages', { requestId, bodyLen: latest.body.length });
+        return res.status(200).json({ success: true, message: latest.body });
+      }
+    }
+    await sleep(POKE_POLL_INTERVAL_MS);
+  }
+
+  return res.status(504).json({
+    ok: false,
+    error: 'Poke agent reply not seen in Messages before timeout. Use paste fallback if the reply arrived.',
+    request_id: requestId,
+  });
 });
 
 /**
@@ -266,6 +345,9 @@ app.post('/poke/callback', (req, res) => {
   res.status(200).json({ ok: true });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`Server listening on port ${PORT}`);
+  });
+}
+export { app, pendingPokeAgentRequestIds };

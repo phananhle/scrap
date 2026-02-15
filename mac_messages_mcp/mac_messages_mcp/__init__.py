@@ -13,6 +13,7 @@ from .messages import (
     get_addressbook_contacts,
     get_cached_contacts,
     get_contact_name,
+    get_latest_message_from_contact,
     get_recent_messages,
     normalize_phone_number,
     query_addressbook_db,
@@ -22,6 +23,7 @@ from .messages import (
 
 __all__ = [
     "phone_country",
+    "get_latest_message_from_contact",
     "get_recent_messages",
     "send_message",
     "query_messages_db",
