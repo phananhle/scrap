@@ -508,7 +508,7 @@ app.get('/summarize', async (req, res) => {
     return res.status(401).json({ ok: false, error: 'Missing or invalid Authorization header. Use: Bearer <access_token>' });
   }
   const hours = Math.min(Math.max(1, parseInt(req.query.hours, 10) || 168), 24 * 365);
-  const includeGmail = req.query.includeGmail !== 'false' && req.query.includeGmail !== '0';
+  const includeGmail = (req.query.includeGmail === 'false' || req.query.includeGmail === '0') ? false : true;
   console.log('[GET /summarize] request', { hours, includeGmail });
 
   try {
