@@ -2,9 +2,13 @@
   "name": "scrap",
   "private": true,
   "scripts": {
+    "convex": "npx convex dev",
     "start": "cd mobile && npx expo start",
     "ios": "cd mobile && npx expo start --ios",
     "android": "cd mobile && npx expo start --android",
     "web": "cd mobile && npx expo start --web"
+  },
+  "dependencies": {
+    "convex": "^1.31.7"
   }
 }

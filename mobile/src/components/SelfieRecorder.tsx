@@ -47,7 +47,13 @@ export const SelfieRecorder = React.forwardRef<SelfieRecorderHandle, SelfieRecor
   const [requestingPermission, setRequestingPermission] = React.useState(false);
   const [recording, setRecording] = React.useState(false);
   const [cameraReady, setCameraReady] = React.useState(false);
+  const [videoMuted, setVideoMuted] = React.useState(true);
   const recordingPromiseRef = React.useRef<Promise<{ uri: string } | undefined> | null>(null);
+
+  // Reset mute to true when a new video is recorded
+  React.useEffect(() => {
+    if (videoUri) setVideoMuted(true);
+  }, [videoUri]);
 
   React.useImperativeHandle(
     ref,
@@ -208,12 +214,19 @@ export const SelfieRecorder = React.forwardRef<SelfieRecorderHandle, SelfieRecor
     return (
       <ThemedView style={styles.section}>
         {!compact && <ThemedText style={styles.sectionTitle}>Your recording</ThemedText>}
-        <Video
-          source={{ uri: videoUri }}
-          style={styles.videoPreview}
-          useNativeControls
-          isLooping={false}
-        />
+        <Pressable
+          style={styles.videoPressable}
+          onPress={() => setVideoMuted((m) => !m)}
+        >
+          <Video
+            source={{ uri: videoUri }}
+            style={styles.videoPreview}
+            useNativeControls={false}
+            isLooping
+            isMuted={videoMuted}
+            shouldPlay
+          />
+        </Pressable>
         {!compact && (
           <Pressable
             style={styles.rerecordBtn}
@@ -321,6 +334,9 @@ const styles = StyleSheet.create({
   recordBtnText: {
     color: '#000',
     fontWeight: '700',
+  },
+  videoPressable: {
+    width: '100%',
   },
   videoPreview: {
     width: '100%',
