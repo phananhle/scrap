@@ -55,15 +55,6 @@ export const SelfieRecorder = React.forwardRef<SelfieRecorderHandle, SelfieRecor
     if (videoUri) setVideoMuted(true);
   }, [videoUri]);
 
-  React.useImperativeHandle(
-    ref,
-    () => ({
-      startRecording,
-      stopRecording,
-    }),
-    [startRecording, stopRecording]
-  );
-
   const notifyRecording = React.useCallback(
     (value: boolean) => {
       onRecordingStateChange?.(value);
@@ -157,6 +148,15 @@ export const SelfieRecorder = React.forwardRef<SelfieRecorderHandle, SelfieRecor
     }
   }, [recording, onVideoUriChange, notifyRecording]);
 
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      startRecording,
+      stopRecording,
+    }),
+    [startRecording, stopRecording]
+  );
+
   const handleRecordPress = () => {
     if (recording) stopRecording();
     else startRecording();
@@ -215,16 +215,17 @@ export const SelfieRecorder = React.forwardRef<SelfieRecorderHandle, SelfieRecor
       <ThemedView style={styles.section}>
         {!compact && <ThemedText style={styles.sectionTitle}>Your recording</ThemedText>}
         <Pressable
-          style={styles.videoPressable}
+          style={styles.cameraWrap}
           onPress={() => setVideoMuted((m) => !m)}
         >
           <Video
             source={{ uri: videoUri }}
-            style={styles.videoPreview}
+            style={styles.camera}
             useNativeControls={false}
             isLooping
             isMuted={videoMuted}
             shouldPlay
+            resizeMode="cover"
           />
         </Pressable>
         {!compact && (
@@ -247,6 +248,8 @@ export const SelfieRecorder = React.forwardRef<SelfieRecorderHandle, SelfieRecor
           ref={cameraRef}
           style={styles.camera}
           facing="front"
+          mode="video"
+          mirror
           onCameraReady={() => {
             setCameraReady(true);
             notifyCameraReady(true);
