@@ -9,6 +9,10 @@
     "web": "cd mobile && npx expo start --web"
   },
   "dependencies": {
-    "convex": "^1.31.7"
+    "@auth/core": "^0.37.0",
+    "@convex-dev/auth": "^0.0.90",
+    "convex": "^1.31.7",
+    "oslo": "^1.2.1",
+    "twilio": "^5.12.1"
   }
 }

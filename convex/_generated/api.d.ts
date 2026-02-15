@@ -8,6 +8,10 @@
  * @module
  */
 
+import type * as auth from "../auth.js";
+import type * as http from "../http.js";
+import type * as otp_TwilioSDK from "../otp/TwilioSDK.js";
+import type * as otp_TwilioVerify from "../otp/TwilioVerify.js";
 import type * as scraps from "../scraps.js";
 
 import type {
@@ -17,6 +21,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  auth: typeof auth;
+  http: typeof http;
+  "otp/TwilioSDK": typeof otp_TwilioSDK;
+  "otp/TwilioVerify": typeof otp_TwilioVerify;
   scraps: typeof scraps;
 }>;
 

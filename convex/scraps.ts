@@ -1,7 +1,10 @@
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
 
 export const generateUploadUrl = mutation(async (ctx) => {
+  const userId = await getAuthUserId(ctx);
+  if (!userId) throw new Error("Must be signed in to upload");
   return await ctx.storage.generateUploadUrl();
 });
 
@@ -12,16 +15,11 @@ export const createScrap = mutation({
     photoStorageIds: v.array(v.id("_storage")),
   },
   handler: async (ctx, args) => {
-    // Placeholder: get or create default user for MVP (replace with auth later)
-    let user = await ctx.db.query("users").first();
-    if (!user) {
-      const userId = await ctx.db.insert("users", {});
-      user = await ctx.db.get(userId);
-    }
-    if (!user) throw new Error("Could not get or create user");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Must be signed in to create a scrap");
 
     const scrapId = await ctx.db.insert("scraps", {
-      userId: user._id,
+      userId,
       videoStorageId: args.videoStorageId,
       timestamp: args.timestamp,
     });
