@@ -46,10 +46,18 @@ export default function JournalScreen() {
       <View style={styles.topSection}>
         <View style={styles.topRow}>
           <ThemedView style={styles.primingColumn}>
-            <ThemedText style={styles.sectionTitle}>Prime your memory</ThemedText>
+            <View style={styles.primingTitleRow}>
+              <ThemedText style={styles.sectionTitle}>Prime your memory</ThemedText>
+              {primingLoading && (
+                <ActivityIndicator size="small" style={styles.primingTitleSpinner} />
+              )}
+            </View>
             {primingLoading && !primingText ? (
               <View style={styles.primingPlaceholder}>
                 <ActivityIndicator size="small" />
+                <ThemedText style={styles.primingPlaceholderText}>
+                  Loading from backend…
+                </ThemedText>
               </View>
             ) : primingText ? (
               <ThemedText style={styles.primingText}>{primingText}</ThemedText>
@@ -149,11 +157,19 @@ const styles = StyleSheet.create({
     maxWidth: CAMERA_COLUMN_WIDTH,
     flexShrink: 0,
   },
+  primingTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 10,
     paddingHorizontal: 4,
+  },
+  primingTitleSpinner: {
+    marginLeft: 4,
   },
   primingText: {
     fontSize: 16,
@@ -164,6 +180,8 @@ const styles = StyleSheet.create({
   primingPlaceholder: {
     minHeight: 80,
     justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
     paddingHorizontal: 4,
   },
   primingPlaceholderText: {

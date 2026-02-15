@@ -4,12 +4,15 @@ import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+import { requestLogger } from './middleware/requestLogger.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MCP_DIR = path.resolve(__dirname, '../mac_messages_mcp');
 const GET_MESSAGES_SCRIPT = path.join(MCP_DIR, 'get_messages_cli.py');
 
 const app = express();
 app.use(express.json());
+app.use(requestLogger);
 
 const PORT = process.env.PORT ?? 3000;
 const POKE_WEBHOOK_URL = 'https://poke.com/api/v1/inbound-sms/webhook';
