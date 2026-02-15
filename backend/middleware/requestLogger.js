@@ -23,6 +23,10 @@ export function requestLogger(req, res, next) {
     if (hasQuery) parts.push(`query=${JSON.stringify(req.query)}`);
     if (hasBody) parts.push(`body=${JSON.stringify(req.body)}`);
     console.log(parts.join(' '));
+    // Explicit log for GCal events so mobile getGcalEvents calls are easy to verify
+    if (path.startsWith('/gcal/events') || path === '/gcal/events') {
+      console.log('[requestLogger] GCal events request', { method, path, query: req.query, status: res.statusCode, durationMs });
+    }
   };
 
   res.on('finish', logLine);
