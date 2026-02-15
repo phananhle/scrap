@@ -48,7 +48,7 @@ export async function fetchEmails(after, opts = {}) {
 
   const gmail = await getGmailClient();
   if (!gmail) {
-    return { ok: false, error: 'Gmail not configured (set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN)' };
+    return { ok: false, error: 'Gmail not configured (set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN)' };
   }
 
   let afterDateStr;

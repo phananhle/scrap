@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Get a Google OAuth2 access token (and refresh token) for Calendar scope.
+ * Get a Google OAuth2 access token (and refresh token) for Calendar + Gmail read.
  *
  * Usage:
  *   node get-google-token.js
@@ -19,7 +19,11 @@ import http from 'http';
 import { URL } from 'url';
 
 const REDIRECT_URI = 'http://localhost:3000/callback';
-const SCOPE = 'https://www.googleapis.com/auth/calendar';
+// Request both Calendar and Gmail read; use space-separated list for multiple scopes
+const SCOPE = [
+  'https://www.googleapis.com/auth/calendar',
+  'https://www.googleapis.com/auth/gmail.readonly',
+].join(' ');
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
 function buildAuthUrl(clientId) {

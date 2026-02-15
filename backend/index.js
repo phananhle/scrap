@@ -285,6 +285,7 @@ app.get('/gcal/events', async (req, res) => {
 const GEMINI_DIR = path.resolve(__dirname, 'gemini');
 const SUMMARIZE_SCRIPT = path.join(GEMINI_DIR, 'summarize.py');
 const SUMMARIZE_WITH_GCAL_SCRIPT = path.join(GEMINI_DIR, 'summarize_with_gcal.py');
+const SUMMARIZE_WITH_GCAL_GMAIL_SCRIPT = path.join(GEMINI_DIR, 'summarize_with_gcal_gmail.py');
 
 /**
  * Format gcal events as text for Gemini summarizer (e.g. "Feb 14 10am – Team standup (30min) @ Room 101").
@@ -342,6 +343,49 @@ async function runSummarizeWithGcal(accessToken, hours = 24) {
     proc.on('error', (err) => {
       const durationMs = Date.now() - startedAt;
       console.error('[runSummarizeWithGcal] spawn error', { durationMs, message: err.message });
+      resolve({ ok: false, error: err.message });
+    });
+  });
+}
+
+/**
+ * Run summarize_with_gcal_gmail.py: fetch GCal + Gmail in Python (with env fallback for Gmail) and summarize with Gemini.
+ * Uses --token and --hours; returns { ok, summary?, error? }.
+ */
+async function runSummarizeWithGcalGmail(accessToken, hours = 24) {
+  const hoursClamped = Math.min(Math.max(1, Math.floor(Number(hours) || 24)), 24 * 365);
+  const startedAt = Date.now();
+  console.log('[runSummarizeWithGcalGmail] start', { hours: hoursClamped });
+
+  return new Promise((resolve) => {
+    const py = path.join(GEMINI_DIR, '.venv', 'bin', 'python');
+    const useVenv = fs.existsSync(py);
+    const pythonBin = useVenv ? py : 'python3';
+    const proc = spawn(pythonBin, [SUMMARIZE_WITH_GCAL_GMAIL_SCRIPT, '--token', accessToken, '--hours', String(hoursClamped)], {
+      cwd: GEMINI_DIR,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    proc.stdout?.on('data', (chunk) => { stdout += chunk; });
+    proc.stderr?.on('data', (chunk) => { stderr += chunk; });
+    proc.on('close', (code) => {
+      const durationMs = Date.now() - startedAt;
+      if (code === 0 && stdout.trim()) {
+        console.log('[runSummarizeWithGcalGmail] success', { code, durationMs, summaryLength: stdout.trim().length });
+        resolve({ ok: true, summary: stdout.trim() });
+      } else if (code === 0 && !stdout.trim()) {
+        console.log('[runSummarizeWithGcalGmail] success (no content)', { code, durationMs });
+        resolve({ ok: true, summary: '(No calendar or email content in this period to summarize.)' });
+      } else {
+        const errMsg = stderr || stdout || `exit code ${code}`;
+        console.warn('[runSummarizeWithGcalGmail] failed', { code, durationMs, stderr: stderr.slice(0, 300) });
+        resolve({ ok: false, error: errMsg });
+      }
+    });
+    proc.on('error', (err) => {
+      const durationMs = Date.now() - startedAt;
+      console.error('[runSummarizeWithGcalGmail] spawn error', { durationMs, message: err.message });
       resolve({ ok: false, error: err.message });
     });
   });
@@ -448,8 +492,9 @@ app.get('/gcal/summarize', async (req, res) => {
 /**
  * GET /summarize
  * Fetch Google Calendar events (and optionally Gmail), then summarize via Gemini.
- * Calendar-only path uses summarize_with_gcal.py; with Gmail uses Node fetch + summarize.py.
- * Requires Authorization: Bearer <access_token>. Query params: hours (default 168), includeGmail (optional).
+ * Default includeGmail=true: uses summarize_with_gcal_gmail.py (GCal + Gmail + Gemini, with env fallback for Gmail).
+ * includeGmail=false uses summarize_with_gcal.py (calendar only).
+ * Requires Authorization: Bearer <access_token>. Query params: hours (default 168), includeGmail (default true).
  */
 app.get('/summarize', async (req, res) => {
   console.log('[GET /summarize] request received');
@@ -463,7 +508,7 @@ app.get('/summarize', async (req, res) => {
     return res.status(401).json({ ok: false, error: 'Missing or invalid Authorization header. Use: Bearer <access_token>' });
   }
   const hours = Math.min(Math.max(1, parseInt(req.query.hours, 10) || 168), 24 * 365);
-  const includeGmail = req.query.includeGmail === 'true' || req.query.includeGmail === '1';
+  const includeGmail = req.query.includeGmail !== 'false' && req.query.includeGmail !== '0';
   console.log('[GET /summarize] request', { hours, includeGmail });
 
   try {
@@ -480,27 +525,13 @@ app.get('/summarize', async (req, res) => {
       return res.json({ ok: true, summary: sumResult.summary });
     }
 
-    const fetchGcal = app.locals.fetchGcalEvents ?? fetchGcalEvents;
-    const gcalResult = await fetchGcal(token, hours);
-    if (!gcalResult.ok) {
-      const status = gcalResult.error?.includes('credentials') || gcalResult.error?.includes('invalid') ? 401 : 502;
-      console.warn('[GET /summarize] GCal fetch failed', { status, error: gcalResult.error });
-      return res.status(status).json({ ok: false, error: gcalResult.error });
-    }
-    const calendarText = formatGcalEventsAsText(gcalResult.events || []);
-    let gmailText = '';
-    const after = Date.now() - hours * 60 * 60 * 1000;
-    const emailResult = await fetchEmails(after, { maxResults: 50 });
-    if (emailResult.ok && emailResult.emails?.length) {
-      gmailText = emailResult.emails
-        .map((e) => `From: ${e.from} | Subject: ${e.subject} | ${e.snippet || ''}`)
-        .join('\n');
-    }
-    const sumResult = await runSummarize(calendarText, gmailText);
+    const runWithGcalGmail = app.locals.runSummarizeWithGcalGmail ?? runSummarizeWithGcalGmail;
+    const sumResult = await runWithGcalGmail(token, hours);
     const durationMs = Date.now() - routeStartedAt;
     if (!sumResult.ok) {
-      console.warn('[GET /summarize] error (Gmail path)', { durationMs, error: sumResult.error?.slice(0, 200) });
-      return res.status(502).json({ ok: false, error: sumResult.error || 'Gemini summarization failed' });
+      const status = sumResult.error?.includes('credentials') || sumResult.error?.includes('invalid') || sumResult.error?.includes('401') ? 401 : 502;
+      console.warn('[GET /summarize] error (gcal_gmail path)', { status, durationMs, error: sumResult.error?.slice(0, 200) });
+      return res.status(status).json({ ok: false, error: sumResult.error });
     }
     console.log('[GET /summarize] 200', { durationMs, summaryLength: sumResult.summary?.length ?? 0 });
     return res.json({ ok: true, summary: sumResult.summary });
@@ -731,4 +762,4 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`Server listening on port ${PORT} (0.0.0.0)`);
   });
 }
-export { app, pendingPokeAgentRequestIds, fetchGcalEvents, runSummarize, runSummarizeWithGcal };
+export { app, pendingPokeAgentRequestIds, fetchGcalEvents, runSummarize, runSummarizeWithGcal, runSummarizeWithGcalGmail };
