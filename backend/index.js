@@ -278,6 +278,10 @@ app.get('/gcal/events', async (req, res) => {
   } catch (err) {
     console.error('GCal fetch failed:', err);
     return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/**
  * GET /gmail/emails
  * Fetch Gmail messages from a given timestamp to now.
  * Query params: after (required) - Unix ms, Unix s, or ISO date string; maxResults (optional, default 50, max 500)
