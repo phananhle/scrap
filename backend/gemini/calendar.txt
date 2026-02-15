@@ -1,0 +1,12 @@
+9:30am – Check-in & Breakfast
+10:00am – Team Standup
+10:15am – Finalize Problem Statement & Scope
+	•	11:00am – Architecture Planning + Task Assignment
+	•	12:30pm – Lunch Break
+	•	1:00pm – Development Sprint 1
+	•	3:30pm – Mentor Check-in / Office Hours
+	•	4:00pm – Development Sprint 2
+	•	6:30pm – Dinner Break
+	•	7:00pm – Integration & Debugging Session
+	•	9:30pm – Progress Standup + Risk Check
+	•	10:00pm – Optional Late-Night Build Session

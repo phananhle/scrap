@@ -5,7 +5,8 @@
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.example.com';
 
-let authToken: string | null = null;
+// Load from env (copy GOOGLE_ACCESS_TOKEN from backend .env into EXPO_PUBLIC_GOOGLE_ACCESS_TOKEN in mobile .env)
+let authToken: string | null = process.env.EXPO_PUBLIC_GOOGLE_ACCESS_TOKEN ?? null;
 
 export function setAuthToken(token: string | null) {
   authToken = token;
