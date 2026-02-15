@@ -1,13 +1,24 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createServer } from "http";
-import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
-import { join } from "path";
+import { writeFileSync, mkdirSync, readFileSync, existsSync, appendFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import { z } from "zod";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || "8787", 10);
-const DATA_DIR = join(process.cwd(), "data");
+const DATA_DIR = join(__dirname, "data");
 const RECAP_FILE = join(DATA_DIR, "recap-temp.json");
+const LOG_FILE = join(DATA_DIR, "scrap-mcp.log");
+
+function log(message: string): void {
+  const line = `[${new Date().toISOString()}] ${message}\n`;
+  try {
+    appendFileSync(LOG_FILE, line, "utf-8");
+  } catch (_) {}
+  console.error(message);
+}
 
 const SCRAP_PROTOCOL = `SCRAP PROTOCOL — follow in order. Do not skip step 1.
 
@@ -105,6 +116,7 @@ const httpServer = createServer(async (req, res) => {
             savedAt: new Date().toISOString(),
           };
           writeFileSync(RECAP_FILE, JSON.stringify(payload, null, 2), "utf-8");
+          log(`save_recap: wrote ${RECAP_FILE} (${recap.length} chars)`);
           return text(`Recap saved to ${RECAP_FILE}`);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -122,8 +134,21 @@ const httpServer = createServer(async (req, res) => {
   }
 });
 
+// Ensure data dir and recap file exist so you can see where they are
+mkdirSync(DATA_DIR, { recursive: true });
+if (!existsSync(RECAP_FILE)) {
+  writeFileSync(
+    RECAP_FILE,
+    JSON.stringify({ recap: "", savedAt: null }, null, 2),
+    "utf-8"
+  );
+  log(`Created placeholder ${RECAP_FILE}`);
+}
+
 httpServer.listen(PORT, () => {
-  console.error(`scrap-mcp running at http://localhost:${PORT}/mcp`);
-  console.error(`Tools: start_scrap, save_recap, get_primer_template, get_share_suggestions_prompt`);
-  console.error(`\nNext: npx poke tunnel http://localhost:${PORT}/mcp --name "Scrap MCP"\n`);
+  log(`scrap-mcp running at http://localhost:${PORT}/mcp`);
+  log(`Recap file: ${RECAP_FILE}`);
+  log(`Log file: ${LOG_FILE}`);
+  log(`Tools: start_scrap, save_recap, get_primer_template, get_share_suggestions_prompt`);
+  log(`Next: npx poke tunnel http://localhost:${PORT}/mcp --name "Scrap MCP"`);
 });

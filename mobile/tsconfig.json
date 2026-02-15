@@ -4,6 +4,7 @@
     "strict": true,
     "paths": {
       "@/*": ["./*"],
+      "@/auth/*": ["./src/auth/*"],
       "@/api/*": ["./src/api/*"],
       "@/convex/*": ["../convex/*"],
       "@/services/*": ["./src/services/*"],

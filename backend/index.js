@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import crypto from 'crypto';
 import express from 'express';
 import fs from 'fs';
@@ -10,8 +10,11 @@ import { google } from 'googleapis';
 import { Poke } from 'poke';
 
 import { requestLogger } from './middleware/requestLogger.js';
+import { fetchEmails } from './gmail-api/fetchEmails.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Load .env from repo root so one file works for backend and other tools
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const DEBUG_LOG = path.resolve(__dirname, '../../.cursor/debug.log');
 const dbg = (loc, msg, data, hid) => { try { fs.mkdirSync(path.dirname(DEBUG_LOG), { recursive: true }); fs.appendFileSync(DEBUG_LOG, JSON.stringify({location:loc,message:msg,data,timestamp:Date.now(),hypothesisId:hid})+'\n'); } catch(_){} };
 const MCP_DIR = path.resolve(__dirname, '../mac_messages_mcp');
@@ -275,6 +278,30 @@ app.get('/gcal/events', async (req, res) => {
   } catch (err) {
     console.error('GCal fetch failed:', err);
     return res.status(500).json({ ok: false, error: err.message });
+ * GET /gmail/emails
+ * Fetch Gmail messages from a given timestamp to now.
+ * Query params: after (required) - Unix ms, Unix s, or ISO date string; maxResults (optional, default 50, max 500)
+ */
+app.get('/gmail/emails', async (req, res) => {
+  const afterRaw = req.query.after;
+  if (afterRaw === undefined || afterRaw === '') {
+    return res.status(400).json({ ok: false, error: 'Query param "after" is required (Unix timestamp or ISO date)' });
+  }
+  const after = /^\d+$/.test(String(afterRaw).trim()) ? parseInt(afterRaw, 10) : String(afterRaw).trim();
+  const maxResults = Math.min(500, Math.max(1, parseInt(req.query.maxResults, 10) || 50));
+  try {
+    const result = await fetchEmails(after, { maxResults });
+    if (result.ok) {
+      res.json({ ok: true, emails: result.emails });
+    } else {
+      res.status(result.error?.includes('not configured') ? 503 : 502).json({
+        ok: false,
+        error: result.error || 'Failed to fetch emails',
+      });
+    }
+  } catch (err) {
+    console.error('Gmail fetch failed:', err);
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
