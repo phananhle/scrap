@@ -22,6 +22,10 @@ const LOAD_TIMEOUT_MS = 20000;
 const GAP = 8;
 const CONTENT_WIDTH = Dimensions.get('window').width - 40;
 const CELL_SIZE = (CONTENT_WIDTH - GAP) / 2;
+const SELECTION_BORDER_WIDTH = 3;
+const CELL_SIZE_WITH_BORDER = CELL_SIZE - SELECTION_BORDER_WIDTH * 2; // inner size when border is always reserved
+const CELL_RADIUS = 10;
+const CELL_RADIUS_WITH_BORDER = CELL_RADIUS - SELECTION_BORDER_WIDTH; // inner radius so content matches border curve
 const PLACEHOLDER_MIN_HEIGHT = 120;
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -233,14 +237,16 @@ export function PhotoStrip({
       <View style={styles.grid}>
         {photoUris.map((uri, index) => {
           const isSelected = selectedUris.includes(uri);
+          const size = selectable ? CELL_SIZE_WITH_BORDER : CELL_SIZE;
+          const radius = selectable ? CELL_RADIUS_WITH_BORDER : CELL_RADIUS;
           const content = (
-            <View style={[styles.cellWrapper, { width: CELL_SIZE, height: CELL_SIZE }]}>
+            <View style={[styles.cellWrapper, { width: size, height: size, borderRadius: radius }]}>
               <Image
                 source={{ uri }}
-                style={[styles.cell, { width: CELL_SIZE, height: CELL_SIZE }]}
+                style={[styles.cell, { width: size, height: size, borderRadius: radius }]}
               />
               {selectable && isSelected && (
-                <View style={[styles.cellOverlay, { width: CELL_SIZE, height: CELL_SIZE }]}>
+                <View style={[styles.cellOverlay, { width: size, height: size, borderRadius: radius }]}>
                   <Ionicons name="checkmark-circle" size={32} color="#fff" />
                 </View>
               )}
@@ -254,7 +260,8 @@ export function PhotoStrip({
                 style={({ pressed }) => [
                   styles.cellPressable,
                   { width: CELL_SIZE, height: CELL_SIZE },
-                  isSelected && styles.cellSelected,
+                  styles.cellSelectableBorder,
+                  { borderColor: isSelected ? '#2f95dc' : 'transparent' },
                   pressed && styles.cellPressed,
                 ]}
               >
@@ -289,20 +296,19 @@ const styles = StyleSheet.create({
     gap: GAP,
   },
   cell: {
-    borderRadius: 10,
+    borderRadius: CELL_RADIUS,
     backgroundColor: '#eee',
   },
   cellWrapper: {
-    borderRadius: 10,
+    borderRadius: CELL_RADIUS,
     overflow: 'hidden',
     position: 'relative',
   },
   cellPressable: {
-    borderRadius: 10,
+    borderRadius: CELL_RADIUS,
   },
-  cellSelected: {
-    borderWidth: 3,
-    borderColor: '#2f95dc',
+  cellSelectableBorder: {
+    borderWidth: SELECTION_BORDER_WIDTH,
   },
   cellPressed: {
     opacity: 0.8,
@@ -316,7 +322,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
+    borderRadius: CELL_RADIUS,
   },
   placeholder: {
     minHeight: PLACEHOLDER_MIN_HEIGHT,

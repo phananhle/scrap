@@ -26,3 +26,7 @@ mobile/yarn-error.*
 .vscode/
 .env
 .env.local
+
+# Poke reminder state (local last-run timestamp)
+poke/reminder_state.json
+poke/cron.log

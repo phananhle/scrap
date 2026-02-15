@@ -69,3 +69,12 @@ curl -X POST http://localhost:3000/poke/send \
   -H "Content-Type: application/json" \
   -d '{"message": "Using my calendar, photos, messages, and email from the last 7 days..."}'
 ```
+
+---
+
+## Reminder and cron
+
+- **Set reminder interval:** In `poke/.env` add `POKE_REMIND_DAYS=3` (default is 3). Or run `python get_primer.py --set-remind-days 5` to set 5 days and record “last run” as now.
+- **Cron:** Run the check daily so you get a desktop reminder if you haven’t run the primer in that many days:
+  - From `poke/`: `./install_cron.sh` prints the crontab line; `./install_cron.sh install` adds it (9:00 AM daily).
+  - Or add to crontab: `0 9 * * * cd /path/to/scrap/poke && python3 get_primer.py --check-reminder`
