@@ -10,7 +10,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { ResizeMode, Video } from 'expo-av';
+import { Video } from 'expo-av';
 
 import { Text as ThemedText, View as ThemedView } from '@/components/Themed';
 
@@ -225,7 +225,7 @@ export const SelfieRecorder = React.forwardRef<SelfieRecorderHandle, SelfieRecor
             isLooping
             isMuted={videoMuted}
             shouldPlay
-            resizeMode={ResizeMode.COVER}
+            resizeMode="cover"
           />
         </Pressable>
         {!compact && (

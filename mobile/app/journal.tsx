@@ -14,8 +14,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { api } from '../convex/_generated/api';
-import type { Id } from '../convex/_generated/dataModel';
+import { api } from '@/convex/_generated/api';
+import type { Id } from '@/convex/_generated/dataModel';
 import { Text as ThemedText, View as ThemedView } from '@/components/Themed';
 import { PhotoStrip } from '@/ui/PhotoStrip';
 import type { SelfieRecorderHandle } from '@/ui/SelfieRecorder';
@@ -118,15 +118,12 @@ export default function JournalScreen() {
               )}
             </View>
             {primingLoading && !primingText ? (
-              <ThemedView style={styles.waitingPanel}>
-                <ActivityIndicator size="small" style={styles.waitingPanelSpinner} />
-                <ThemedText style={styles.waitingPanelTitle}>
-                  Waiting for Poke AI response
+              <View style={styles.primingPlaceholder}>
+                <ActivityIndicator size="small" />
+                <ThemedText style={styles.primingPlaceholderText}>
+                  Loading from backend…
                 </ThemedText>
-                <ThemedText style={styles.waitingPanelSubtext}>
-                  Fetching your memory prompt…
-                </ThemedText>
-              </ThemedView>
+              </View>
             ) : primingText ? (
               <ThemedText style={styles.primingText}>{primingText}</ThemedText>
             ) : (
@@ -215,7 +212,7 @@ const styles = StyleSheet.create({
   },
   topSection: {
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 24,
     paddingBottom: 16,
   },
   galleryScroll: {
@@ -275,29 +272,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 4,
-  },
-  waitingPanel: {
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(128,128,128,0.35)',
-    backgroundColor: 'rgba(128,128,128,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 100,
-  },
-  waitingPanelSpinner: {
-    marginBottom: 12,
-  },
-  waitingPanelTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  waitingPanelSubtext: {
-    fontSize: 14,
-    opacity: 0.7,
   },
   primingPlaceholderText: {
     fontSize: 15,
