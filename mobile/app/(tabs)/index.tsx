@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -13,6 +13,8 @@ import {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CAMERA_COLUMN_WIDTH = Math.min(160, (SCREEN_WIDTH - 52) * 0.4);
 
+const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
+
 import { Text as ThemedText, View as ThemedView } from '@/components/Themed';
 import { PhotoStrip } from '@/ui/PhotoStrip';
 import type { SelfieRecorderHandle } from '@/ui/SelfieRecorder';
@@ -20,7 +22,12 @@ import { SelfieRecorder } from '@/ui/SelfieRecorder';
 import { usePriming } from '@/hooks/usePriming';
 
 export default function JournalScreen() {
-  const { text: primingText, loading: primingLoading, fetchPriming } = usePriming();
+  const sinceTimestamp = useMemo(
+    () => Date.now() - FORTY_EIGHT_HOURS_MS,
+    []
+  );
+  const { text: primingText, loading: primingLoading, fetchPriming } =
+    usePriming(sinceTimestamp);
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
@@ -74,7 +81,7 @@ export default function JournalScreen() {
           <RefreshControl refreshing={primingLoading} onRefresh={loadPriming} />
         }
       >
-        <PhotoStrip />
+        <PhotoStrip sinceTimestamp={sinceTimestamp} />
       </ScrollView>
 
       <ThemedView style={styles.bottomBar}>
