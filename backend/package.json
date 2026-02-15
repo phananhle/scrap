@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "test": "node --test poke-agent.test.js"
+    "test": "node --test gcal-test.js"
   },
   "dependencies": {
     "@google/genai": "^1.41.0",

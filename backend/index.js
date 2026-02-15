@@ -5,6 +5,8 @@ import fs from 'fs';
 import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import cors from 'cors';
+import { google } from 'googleapis';
 import { Poke } from 'poke';
 
 import { requestLogger } from './middleware/requestLogger.js';
@@ -19,6 +21,7 @@ const MCP_DIR = path.resolve(__dirname, '../mac_messages_mcp');
 const GET_MESSAGES_SCRIPT = path.join(MCP_DIR, 'get_messages_cli.py');
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 app.use(requestLogger);
 
@@ -136,6 +139,62 @@ async function fetchLatestMessageFromContact(contact, hours = 1) {
   });
 }
 
+/**
+ * Fetch the user's Google Calendar events from the last h hours through now.
+ * Uses the Calendar API (https://developers.google.com/workspace/calendar/api) with the
+ * user's OAuth access token. Requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET (same
+ * GCP project as the app that issued the token).
+ * @param {string} accessToken - User's OAuth2 access token (e.g. from Authorization header)
+ * @param {number} hours - Number of hours back from now to fetch events (default 24)
+ * @returns {Promise<{ok: boolean, events?: Array<{summary: string, start: string, end: string}>, error?: string}>}
+ */
+async function fetchGcalEvents(accessToken, hours = 24) {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    return {
+      ok: false,
+      error: 'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set for Google Calendar',
+    };
+  }
+  const hoursClamped = Math.min(Math.max(1, Math.floor(Number(hours) || 24)), 24 * 365);
+  const timeMax = new Date();
+  const timeMin = new Date(timeMax.getTime() - hoursClamped * 60 * 60 * 1000);
+  const GCAL_TIMEOUT_MS = 20000;
+  try {
+    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+    oauth2Client.setCredentials({ access_token: accessToken });
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    const listPromise = calendar.events.list({
+      calendarId: 'primary',
+      timeMin: timeMin.toISOString(),
+      timeMax: timeMax.toISOString(),
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 250,
+    });
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Google Calendar API timeout')), GCAL_TIMEOUT_MS)
+    );
+    const response = await Promise.race([listPromise, timeoutPromise]);
+    const items = response.data.items || [];
+    const events = items.map((e) => ({
+      summary: e.summary || '(No title)',
+      start: e.start?.dateTime || e.start?.date || '',
+      end: e.end?.dateTime || e.end?.date || '',
+      id: e.id,
+      ...(e.location ? { location: e.location } : {}),
+    }));
+    return { ok: true, events };
+  } catch (err) {
+    const message = err.message || String(err);
+    return {
+      ok: false,
+      error: message,
+    };
+  }
+}
+
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -182,6 +241,43 @@ app.get('/messages', async (req, res) => {
 });
 
 /**
+ * GET /gcal/events
+ * Retrieve the user's Google Calendar events from now through the next h hours.
+ * Requires Authorization: Bearer <access_token> (user's OAuth2 access token from Google Sign-In).
+ * Query params: hours (default 24, max 8760).
+ */
+app.get('/gcal/events', async (req, res) => {
+  console.log('[GCal] GET /gcal/events hit', { query: req.query, hasAuth: !!req.get('Authorization') });
+  const authHeader = req.get('Authorization');
+  const token =
+    authHeader && /^Bearer\s+/i.test(authHeader)
+      ? authHeader.replace(/^Bearer\s+/i, '').trim()
+      : null;
+  if (!token) {
+    console.log('[GCal] 401 - no Bearer token');
+    return res.status(401).json({
+      ok: false,
+      error: 'Missing or invalid Authorization header. Use: Bearer <access_token>',
+    });
+  }
+  const hours = Math.min(
+    Math.max(1, parseInt(req.query.hours, 10) || 24),
+    24 * 365
+  );
+  try {
+    const fetchGcal = app.locals.fetchGcalEvents ?? fetchGcalEvents;
+    const result = await fetchGcal(token, hours);
+    if (result.ok) {
+      console.log('GCal events retrieved:', result.events);
+      return res.json({ ok: true, events: result.events });
+    }
+    const status = result.error?.includes('credentials') || result.error?.includes('invalid')
+      ? 401
+      : 502;
+    return res.status(status).json({ ok: false, error: result.error });
+  } catch (err) {
+    console.error('GCal fetch failed:', err);
+    return res.status(500).json({ ok: false, error: err.message });
  * GET /gmail/emails
  * Fetch Gmail messages from a given timestamp to now.
  * Query params: after (required) - Unix ms, Unix s, or ISO date string; maxResults (optional, default 50, max 500)
@@ -401,4 +497,4 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`Server listening on port ${PORT}`);
   });
 }
-export { app, pendingPokeAgentRequestIds };
+export { app, pendingPokeAgentRequestIds, fetchGcalEvents };
