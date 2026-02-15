@@ -1,23 +1,24 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createServer } from "http";
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
+import { join } from "path";
+import { z } from "zod";
 
 const PORT = parseInt(process.env.PORT || "8787", 10);
+const DATA_DIR = join(process.cwd(), "data");
+const RECAP_FILE = join(DATA_DIR, "recap-temp.json");
 
 const SCRAP_PROTOCOL = `SCRAP PROTOCOL — follow in order. Do not skip step 1.
 
 1. FETCH ACTUAL CONTENTS (required)
-   You MUST retrieve the user's real data first. Use every integration you have:
-   - Calendar: list actual events from the past 3–7 days (title, date, time).
-   - Reminders: list completed or due items from the past few days.
-   - Google / notes / recent messages: any concrete activity you can read.
-   Do NOT show a generic template or placeholders like "valentine's day plans" or "your recent work" without having pulled real items. If you have no access to calendar/reminders, say so clearly and ask the user to paste recent activity, or list only what you can actually see.
+   Retrieve the user's real data from every integration you have: calendar (events, past 3–7 days), reminders, Google, notes, recent messages. Build the full list with dates and sources (e.g. "Feb 14 – Calendar: Team standup", "Reminder: Book dinner"). Do NOT use placeholders. If you have no access, say so and ask the user to paste recent activity.
 
-2. SHOW THE REAL LIST FIRST
-   Present the actual contents you fetched: "Here's what I found from the past few days:" then list each item with date/source (e.g. "Feb 14 – Calendar: Team standup", "Reminder: Book dinner"). This is the raw input — the user must see their real data.
+2. SAVE THE RECAP TO JSON (do not send the full recap back in chat)
+   Call save_recap with the full recap text (the complete list you fetched). The server saves it to a temporary JSON file (data/recap-temp.json). In chat, only confirm that you saved it — do not paste the full recap into the conversation.
 
-3. BUILD THE PRIMER FROM THAT
-   Turn that real list into a short, shareable primer (3–7 bullets). Use get_primer_template only for structure. Every bullet must come from the actual contents you showed in step 2 (or user additions). Then ask: "What do you want to add or change?"
+3. BUILD THE PRIMER
+   Turn the recap into a short, shareable primer (3–7 bullets). Use get_primer_template for structure. Every bullet must come from the saved recap or user additions. Show only this short primer in chat and ask: "What do you want to add or change?"
 
 4. AFTER USER INPUT
    Once they confirm or edit, call get_share_suggestions_prompt: suggest people to share with and help draft messages.`;
@@ -44,6 +45,24 @@ function text(content: string) {
 }
 
 const httpServer = createServer(async (req, res) => {
+  if (req.method === "GET" && req.url === "/recap") {
+    res.setHeader("Content-Type", "application/json");
+    if (!existsSync(RECAP_FILE)) {
+      res.writeHead(404);
+      res.end(JSON.stringify({ ok: false, error: "No recap file yet" }));
+      return;
+    }
+    try {
+      const raw = readFileSync(RECAP_FILE, "utf-8");
+      const data = JSON.parse(raw);
+      res.writeHead(200);
+      res.end(JSON.stringify({ ok: true, recap: data.recap ?? "", savedAt: data.savedAt ?? null }));
+    } catch (err) {
+      res.writeHead(500);
+      res.end(JSON.stringify({ ok: false, error: String(err) }));
+    }
+    return;
+  }
   if (req.url === "/mcp" || req.url?.startsWith("/mcp?")) {
     const server = new McpServer(
       { name: "scrap-mcp", version: "1.0.0" },
@@ -74,6 +93,26 @@ const httpServer = createServer(async (req, res) => {
       async () => text(SHARE_SUGGESTIONS_PROMPT)
     );
 
+    server.tool(
+      "save_recap",
+      "Save the user's recap (full list of what they did in the past days, with dates and sources) to a JSON file on disk. Call this after you have fetched their actual calendar/reminders/activity — pass the full recap text. Do not return the full recap in chat; just confirm it was saved.",
+      { recap: z.string().describe("Full recap text: list of activities with dates and sources") },
+      async ({ recap }) => {
+        try {
+          mkdirSync(DATA_DIR, { recursive: true });
+          const payload = {
+            recap,
+            savedAt: new Date().toISOString(),
+          };
+          writeFileSync(RECAP_FILE, JSON.stringify(payload, null, 2), "utf-8");
+          return text(`Recap saved to ${RECAP_FILE}`);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return text(`Failed to save recap: ${msg}`);
+        }
+      }
+    );
+
     const transport = new StreamableHTTPServerTransport({});
     await server.connect(transport);
     await transport.handleRequest(req, res);
@@ -85,6 +124,6 @@ const httpServer = createServer(async (req, res) => {
 
 httpServer.listen(PORT, () => {
   console.error(`scrap-mcp running at http://localhost:${PORT}/mcp`);
-  console.error(`Tools: start_scrap, get_primer_template, get_share_suggestions_prompt`);
+  console.error(`Tools: start_scrap, save_recap, get_primer_template, get_share_suggestions_prompt`);
   console.error(`\nNext: npx poke tunnel http://localhost:${PORT}/mcp --name "Scrap MCP"\n`);
 });

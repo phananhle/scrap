@@ -152,4 +152,19 @@ export const journalService = {
   async submitPrimingCallback(requestId: string, message: string): Promise<void> {
     await api.post('/poke/callback', { request_id: requestId, message });
   },
+
+  /**
+   * Fetch the latest Scrap recap from backend GET /recap (saved by scrap-mcp when Poke runs Scrap).
+   */
+  async getRecap(): Promise<{ recap: string; savedAt: string | null } | null> {
+    try {
+      const res = await api.get<{ ok: boolean; recap?: string; savedAt?: string | null; error?: string }>('/recap');
+      if (res && typeof res === 'object' && res.ok === true && typeof res.recap === 'string') {
+        return { recap: res.recap, savedAt: res.savedAt ?? null };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  },
 };

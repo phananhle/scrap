@@ -33,6 +33,8 @@ export default function JournalScreen() {
     []
   );
   const { text: primingText, loading: primingLoading, fetchPriming, requestId: primingRequestId, setPrimingTextFromPaste } = usePriming(sinceTimestamp);
+  const [recap, setRecap] = useState<{ recap: string; savedAt: string | null } | null>(null);
+  const [recapLoading, setRecapLoading] = useState(false);
   const [pastedSummary, setPastedSummary] = useState('');
   const [submitSummaryLoading, setSubmitSummaryLoading] = useState(false);
   const [videoUri, setVideoUri] = useState<string | null>(null);
@@ -94,6 +96,21 @@ export default function JournalScreen() {
     fetchPriming();
   }, [fetchPriming]);
 
+  const loadRecap = useCallback(async () => {
+    setRecapLoading(true);
+    try {
+      const data = await journalService.getRecap();
+      setRecap(data);
+    } finally {
+      setRecapLoading(false);
+    }
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    loadPriming();
+    loadRecap();
+  }, [loadPriming, loadRecap]);
+
   const handleSubmitPastedSummary = useCallback(async () => {
     if (!primingRequestId || !pastedSummary.trim()) return;
     setSubmitSummaryLoading(true);
@@ -112,9 +129,29 @@ export default function JournalScreen() {
     loadPriming();
   }, [loadPriming]);
 
+  useEffect(() => {
+    loadRecap();
+  }, [loadRecap]);
+
   return (
     <ThemedView style={styles.container}>
       <View style={styles.topSection}>
+        {recap?.recap ? (
+          <ThemedView style={styles.recapBlock}>
+            <ThemedText style={styles.sectionTitle}>Your recap</ThemedText>
+            {recap.savedAt ? (
+              <ThemedText style={styles.recapSavedAt}>
+                Saved {new Date(recap.savedAt).toLocaleDateString()}
+              </ThemedText>
+            ) : null}
+            <ThemedText style={styles.recapText}>{recap.recap}</ThemedText>
+          </ThemedView>
+        ) : recapLoading ? (
+          <ThemedView style={styles.recapBlock}>
+            <ActivityIndicator size="small" style={styles.recapSpinner} />
+            <ThemedText style={styles.recapPlaceholder}>Loading recap…</ThemedText>
+          </ThemedView>
+        ) : null}
         <View style={styles.topRow}>
           <ThemedView style={styles.primingColumn}>
             <View style={styles.primingTitleRow}>
@@ -186,7 +223,7 @@ export default function JournalScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={true}
         refreshControl={
-          <RefreshControl refreshing={primingLoading} onRefresh={loadPriming} />
+          <RefreshControl refreshing={primingLoading || recapLoading} onRefresh={handleRefresh} />
         }
       >
         <PhotoStrip
@@ -268,6 +305,32 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 17,
     fontWeight: '600',
+  },
+  recapBlock: {
+    marginBottom: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(128,128,128,0.35)',
+    backgroundColor: 'rgba(128,128,128,0.06)',
+  },
+  recapSavedAt: {
+    fontSize: 12,
+    opacity: 0.7,
+    marginBottom: 6,
+  },
+  recapText: {
+    fontSize: 15,
+    lineHeight: 22,
+    paddingVertical: 0,
+  },
+  recapSpinner: {
+    marginBottom: 8,
+  },
+  recapPlaceholder: {
+    fontSize: 15,
+    opacity: 0.6,
   },
   primingTitleSpinner: {
     marginLeft: 4,

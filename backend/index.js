@@ -178,6 +178,26 @@ app.get('/messages', async (req, res) => {
   }
 });
 
+const SCRAP_RECAP_FILE = path.resolve(__dirname, '../scrap-mcp/data/recap-temp.json');
+
+/**
+ * GET /recap
+ * Return the latest Scrap recap from the temp JSON file (written by scrap-mcp when Poke agent calls save_recap).
+ */
+app.get('/recap', (req, res) => {
+  try {
+    if (!fs.existsSync(SCRAP_RECAP_FILE)) {
+      return res.status(404).json({ ok: false, error: 'No recap file yet' });
+    }
+    const raw = fs.readFileSync(SCRAP_RECAP_FILE, 'utf-8');
+    const data = JSON.parse(raw);
+    res.json({ ok: true, recap: data.recap ?? '', savedAt: data.savedAt ?? null });
+  } catch (err) {
+    console.error('Recap read failed:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.post('/poke/send', async (req, res) => {
   const apiKey = process.env.POKE_API_KEY;
   if (!apiKey) {
