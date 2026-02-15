@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { journalService } from '@/services/journalService';
 
-export function usePriming() {
+export function usePriming(sinceTimestamp?: number) {
   const [text, setText] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -10,7 +10,7 @@ export function usePriming() {
     setLoading(true);
     setError(null);
     try {
-      const result = await journalService.getPrimingText();
+      const result = await journalService.getPrimingText(sinceTimestamp);
       setText(result);
       return result;
     } catch (e) {
@@ -20,7 +20,7 @@ export function usePriming() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [sinceTimestamp]);
 
   return { text, loading, error, fetchPriming };
 }
