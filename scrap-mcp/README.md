@@ -44,3 +44,17 @@ The agent will call the Scrap MCP tools, follow the protocol (gather → primer 
 | `get_share_suggestions_prompt` | Get instructions for suggesting people and drafting messages (used after you confirm the primer). |
 
 The more Poke knows (calendar, reminders, Google, contacts), the better the primer and suggestions.
+
+## Logs
+
+Logs go to **stderr** (the terminal where you run `npm run dev`) and to a file:
+
+- **File:** `data/scrap-mcp.log` (next to the server, so `scrap-mcp/data/scrap-mcp.log`)
+
+To watch logs in real time:
+
+```bash
+tail -f scrap-mcp/data/scrap-mcp.log
+```
+
+Useful when the server is started by the tunnel or in the background. You’ll see startup lines and each `save_recap` call.
