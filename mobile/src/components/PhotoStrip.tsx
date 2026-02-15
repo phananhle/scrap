@@ -153,10 +153,7 @@ export function PhotoStrip({
     [onSelectionChange, selectedUris]
   );
 
-  const sectionTitle =
-    sinceTimestamp != null
-      ? 'Photos from the last 48 hours'
-      : 'Recent photos';
+  const sectionTitle = 'Include photos';
 
   if (Platform.OS === 'web') {
     return (
@@ -230,9 +227,7 @@ export function PhotoStrip({
   return (
     <ThemedView style={styles.section}>
       <ThemedText style={styles.sectionTitle}>
-        {sinceTimestamp != null
-          ? 'Photos from the last 48 hours'
-          : 'Your 10 most recent photos'}
+        {sectionTitle}
       </ThemedText>
       <View style={styles.grid}>
         {photoUris.map((uri, index) => {

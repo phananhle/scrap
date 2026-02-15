@@ -104,7 +104,6 @@ export default function JournalScreen() {
       style={[
         styles.container,
         {
-          paddingTop: insets.top,
           paddingBottom: insets.bottom,
         },
       ]}
@@ -213,7 +212,7 @@ const styles = StyleSheet.create({
   },
   topSection: {
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 12,
     paddingBottom: 16,
   },
   galleryScroll: {
