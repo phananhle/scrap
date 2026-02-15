@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useMutation } from 'convex/react';
-import { router } from 'expo-router';
+import { useMutation, useQuery } from 'convex/react';
+import { router, Stack } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -25,13 +25,38 @@ import { usePriming } from '@/hooks/usePriming';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CAMERA_COLUMN_WIDTH = Math.min(160, (SCREEN_WIDTH - 52) * 0.4);
 
-const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
+/** 4 AM local time, 7 days ago */
+function getSevenDaysAgoAt4AM(): number {
+  const d = new Date();
+  d.setDate(d.getDate() - 7);
+  d.setHours(4, 0, 0, 0);
+  return d.getTime();
+}
 
 export default function JournalScreen() {
-  const sinceTimestamp = useMemo(
-    () => Date.now() - FORTY_EIGHT_HOURS_MS,
-    []
-  );
+  const latestScrapTs = useQuery(api.scraps.getLatestScrapTimestamp);
+
+  // undefined = query still loading, null = no scraps exist
+  const queryLoaded = latestScrapTs !== undefined;
+
+  const { sinceTimestamp, sinceLabel, sinceDate } = useMemo(() => {
+    if (!queryLoaded) {
+      return { sinceTimestamp: undefined as number | undefined, sinceLabel: '', sinceDate: '' };
+    }
+    const sevenDaysAgoAt4AM = getSevenDaysAgoAt4AM();
+    const latestScrap = latestScrapTs ?? 0;
+    const usedLatestScrap = latestScrap > sevenDaysAgoAt4AM;
+    const ts = Math.max(sevenDaysAgoAt4AM, latestScrap);
+    const d = new Date(ts);
+    const formatted = `${d.getMonth() + 1}/${d.getDate()}`;
+    return {
+      sinceTimestamp: ts,
+      sinceLabel: usedLatestScrap
+        ? 'New photos since last scrap'
+        : 'New photos this week',
+      sinceDate: formatted,
+    };
+  }, [latestScrapTs, queryLoaded]);
   const { text: primingText, loading: primingLoading, fetchPriming } =
     usePriming(sinceTimestamp);
   const [videoUri, setVideoUri] = useState<string | null>(null);
@@ -108,6 +133,11 @@ export default function JournalScreen() {
         },
       ]}
     >
+      <Stack.Screen
+        options={{
+          headerTitle: sinceDate ? `Scrap (since ${sinceDate})` : 'Scrap',
+        }}
+      />
       <View style={styles.topSection}>
         <View style={styles.topRow}>
           <ThemedView style={styles.primingColumn}>
@@ -154,11 +184,18 @@ export default function JournalScreen() {
           <RefreshControl refreshing={primingLoading} onRefresh={loadPriming} />
         }
       >
-        <PhotoStrip
-          sinceTimestamp={sinceTimestamp}
-          selectedUris={selectedPhotoUris}
-          onSelectionChange={setSelectedPhotoUris}
-        />
+        {sinceTimestamp != null ? (
+          <PhotoStrip
+            sinceTimestamp={sinceTimestamp}
+            sinceLabel={sinceLabel}
+            selectedUris={selectedPhotoUris}
+            onSelectionChange={setSelectedPhotoUris}
+          />
+        ) : (
+          <View style={styles.photoStripLoading}>
+            <ActivityIndicator size="small" />
+          </View>
+        )}
       </ScrollView>
 
       <ThemedView style={styles.bottomBar}>
@@ -221,6 +258,11 @@ const styles = StyleSheet.create({
   galleryScrollContent: {
     paddingHorizontal: 20,
     paddingBottom: 16,
+  },
+  photoStripLoading: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bottomBar: {
     paddingHorizontal: 20,

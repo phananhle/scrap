@@ -46,12 +46,14 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 interface PhotoStripProps {
   sinceTimestamp?: number;
+  sinceLabel?: string;
   selectedUris?: string[];
   onSelectionChange?: (uris: string[]) => void;
 }
 
 export function PhotoStrip({
   sinceTimestamp,
+  sinceLabel,
   selectedUris = [],
   onSelectionChange,
 }: PhotoStripProps) {
@@ -59,20 +61,20 @@ export function PhotoStrip({
   const [loading, setLoading] = useState(true);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [loadError, setLoadError] = useState(false);
-  const loadingRef = useRef(false);
+  const loadGenRef = useRef(0);
 
   const loadRecentPhotos = useCallback(async () => {
     if (Platform.OS === 'web') {
       setLoading(false);
       return;
     }
-    if (loadingRef.current) return;
-    loadingRef.current = true;
+    const gen = ++loadGenRef.current;
     setLoading(true);
     setPermissionDenied(false);
     setLoadError(false);
     const run = async () => {
       const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (gen !== loadGenRef.current) return;
       if (status !== 'granted') {
         setPermissionDenied(true);
         setPhotoUris([]);
@@ -80,9 +82,9 @@ export function PhotoStrip({
       }
 
       if (sinceTimestamp != null) {
+        const createdBefore = Date.now();
         const allAssets: Asset[] = [];
         let after: string | undefined;
-        const createdBefore = Date.now();
         // eslint-disable-next-line no-constant-condition
         while (true) {
           const result = await MediaLibrary.getAssetsAsync({
@@ -90,15 +92,19 @@ export function PhotoStrip({
             after,
             mediaType: MediaLibrary.MediaType.photo,
             sortBy: [[MediaLibrary.SortBy.creationTime, false]],
-            createdAfter: sinceTimestamp,
-            createdBefore,
+            createdAfter: new Date(sinceTimestamp),
+            createdBefore: new Date(createdBefore),
           });
           allAssets.push(...result.assets);
           if (!result.hasNextPage || allAssets.length >= MAX_PHOTOS_CAP) break;
           after = result.endCursor;
         }
+        if (gen !== loadGenRef.current) return;
+        const filtered = allAssets.filter(
+          (a) => a.creationTime >= sinceTimestamp
+        );
         const uris: string[] = [];
-        const toResolve = allAssets.slice(0, MAX_PHOTOS_CAP);
+        const toResolve = filtered.slice(0, MAX_PHOTOS_CAP);
         for (const asset of toResolve) {
           try {
             const info = await MediaLibrary.getAssetInfoAsync(asset.id);
@@ -107,6 +113,7 @@ export function PhotoStrip({
             // skip if we can't get localUri
           }
         }
+        if (gen !== loadGenRef.current) return;
         setPhotoUris(uris);
       } else {
         const { assets } = await MediaLibrary.getAssetsAsync({
@@ -114,6 +121,7 @@ export function PhotoStrip({
           mediaType: MediaLibrary.MediaType.photo,
           sortBy: [[MediaLibrary.SortBy.creationTime, false]],
         });
+        if (gen !== loadGenRef.current) return;
         const uris: string[] = [];
         for (const asset of assets) {
           try {
@@ -123,17 +131,20 @@ export function PhotoStrip({
             // skip if we can't get localUri
           }
         }
+        if (gen !== loadGenRef.current) return;
         setPhotoUris(uris);
       }
     };
     try {
       await withTimeout(run(), LOAD_TIMEOUT_MS);
     } catch {
+      if (gen !== loadGenRef.current) return;
       setPhotoUris([]);
       setLoadError(true);
     } finally {
-      setLoading(false);
-      loadingRef.current = false;
+      if (gen === loadGenRef.current) {
+        setLoading(false);
+      }
     }
   }, [sinceTimestamp]);
 
@@ -155,7 +166,7 @@ export function PhotoStrip({
 
   const sectionTitle =
     sinceTimestamp != null
-      ? 'Photos from the last 48 hours'
+      ? (sinceLabel ?? 'Recent photos')
       : 'Recent photos';
 
   if (Platform.OS === 'web') {
@@ -231,7 +242,7 @@ export function PhotoStrip({
     <ThemedView style={styles.section}>
       <ThemedText style={styles.sectionTitle}>
         {sinceTimestamp != null
-          ? 'Photos from the last 48 hours'
+          ? (sinceLabel ?? 'Recent photos')
           : 'Your 10 most recent photos'}
       </ThemedText>
       <View style={styles.grid}>

@@ -35,6 +35,22 @@ export const createScrap = mutation({
   },
 });
 
+export const getLatestScrapTimestamp = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+
+    const scraps = await ctx.db
+      .query("scraps")
+      .withIndex("by_user_timestamp", (q) => q.eq("userId", userId))
+      .order("desc")
+      .first();
+
+    return scraps?.timestamp ?? null;
+  },
+});
+
 export const listMyScraps = query({
   args: {},
   handler: async (ctx) => {
