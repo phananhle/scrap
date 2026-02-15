@@ -50,6 +50,14 @@
         {
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to show your recent pictures in the journal."
         }
+      ],
+      [
+        "react-native-share",
+        {
+          "ios": [],
+          "android": [],
+          "enableBase64ShareAndroid": true
+        }
       ]
     ],
     "experiments": {
