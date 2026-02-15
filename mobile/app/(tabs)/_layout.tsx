@@ -9,16 +9,11 @@ export default function TabLayout() {
       screenOptions={{
         tabBarStyle: { display: 'none' },
         headerShown: useClientOnlyValue(false, true),
-        headerTitle: 'Journal',
+        headerTitle: 'Scrap',
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Journal' }} />
-      <Tabs.Screen
-        name="two"
-        options={{
-          href: null,
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: 'Home' }} />
+      <Tabs.Screen name="two" options={{ href: null }} />
     </Tabs>
   );
 }
